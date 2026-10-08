@@ -232,9 +232,9 @@ export const RegionalDashboard: React.FC<RegionalDashboardProps> = ({
               >
                 <div className="flex items-start space-x-3.5 flex-1 min-w-0">
                   {/* Photo thumbnail if exists */}
-                  {report.documentationImageUrl ? (
+                  {(report.documentationPhotos?.[0] || report.documentationImageUrl) ? (
                     <img
-                      src={report.documentationImageUrl}
+                      src={report.documentationPhotos?.[0] || report.documentationImageUrl}
                       alt={report.title}
                       className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200 group-hover:scale-105 transition"
                     />

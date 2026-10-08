@@ -480,7 +480,9 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
   const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
   const photos = reportData.documentationPhotos || [];
-  const primaryImageUrl = photos.length > 0 ? photos[0] : (reportData.documentationImageUrl || undefined);
+  const firstPhoto = photos.length > 0 ? photos[0] : (reportData.documentationImageUrl || undefined);
+  // Avoid duplicating base64 photos (already stored in documentationPhotos) to stay under Firestore's 1 MB document limit
+  const primaryImageUrl = firstPhoto && !firstPhoto.startsWith('data:') ? firstPhoto : undefined;
 
   const newReport: ReportItem = {
     ...reportData,
