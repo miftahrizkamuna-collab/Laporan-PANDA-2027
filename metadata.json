@@ -1,0 +1,6 @@
+{
+  "name": "SENSEI 2027 - Sistem Pelaporan Panitia Daerah",
+  "description": "Sistem informasi manajemen pelaporan kegiatan, publikasi, dan perkembangan pendaftar panitia wilayah SENSEI 2027 secara real-time dengan dashboard analitik terpadu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

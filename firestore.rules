@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "miftahrizkamuna@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_pusat")
+      );
+    }
+
+    // Regions master data - public read so committee members and visitors can view province targets
+    match /regions/{regionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Reports - public read for transparent tracking of regional socialization activities
+    match /reports/{reportId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Notifications - public read for real-time alerts
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Fallback deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

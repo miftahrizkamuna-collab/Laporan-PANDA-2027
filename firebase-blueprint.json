@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access for Admin Pusat and Panitia Wilayah",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 255 },
+        "displayName": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin_pusat", "panitia_wilayah"] },
+        "regionId": { "type": "string", "maxLength": 100 },
+        "regionName": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Activity, publication, or registration report submitted by Panitia Wilayah",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "regionId": { "type": "string", "maxLength": 100 },
+        "regionName": { "type": "string", "maxLength": 150 },
+        "reporterId": { "type": "string", "maxLength": 128 },
+        "reporterName": { "type": "string", "maxLength": 150 },
+        "reporterEmail": { "type": "string", "maxLength": 255 },
+        "type": {
+          "type": "string",
+          "enum": ["sosialisasi_sekolah", "publikasi_medsos", "audiensi_tokoh", "update_pendaftar", "kendala_lapangan"]
+        },
+        "title": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "activityDate": { "type": "string", "maxLength": 50 },
+        "registrantsAdded": { "type": "number" },
+        "schoolsVisited": { "type": "number" },
+        "audienceReached": { "type": "number" },
+        "documentationNotes": { "type": "string", "maxLength": 1000 },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "verified", "needs_revision", "rejected"]
+        },
+        "verifiedBy": { "type": "string", "maxLength": 150 },
+        "verificationNotes": { "type": "string", "maxLength": 1000 },
+        "verifiedAt": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["regionId", "reporterId", "type", "title", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time automated alerts for incoming reports, status updates, and milestone alerts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "type": {
+          "type": "string",
+          "enum": ["new_report", "report_verified", "revision_needed", "target_alert", "announcement"]
+        },
+        "reportId": { "type": "string", "maxLength": 128 },
+        "targetRole": { "type": "string", "enum": ["all", "admin_pusat", "panitia_wilayah"] },
+        "targetRegionId": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["title", "message", "type", "targetRole"]
+    },
+    "Region": {
+      "title": "Region",
+      "description": "Master region record with target quotas and coordinator details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 150 },
+        "island": { "type": "string", "maxLength": 100 },
+        "targetRegistrants": { "type": "number" },
+        "currentRegistrants": { "type": "number" },
+        "targetSchools": { "type": "number" },
+        "currentSchools": { "type": "number" },
+        "coordinatorName": { "type": "string", "maxLength": 150 },
+        "coordinatorPhone": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "maxLength": 50 },
+        "dailyTargetRegistrants": { "type": "number" },
+        "todayRegistrants": { "type": "number" }
+      },
+      "required": ["id", "name", "targetRegistrants"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and role metadata"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Activity reports submitted by region committees"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Instant notifications for new reports and verification status"
+    },
+    "/regions/{regionId}": {
+      "schema": { "$ref": "#/entities/Region" },
+      "description": "Master data for SENSEI 2027 regional committees and quota targets"
+    }
+  }
+}
