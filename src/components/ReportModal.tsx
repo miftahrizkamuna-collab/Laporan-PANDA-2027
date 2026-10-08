@@ -21,6 +21,10 @@ import { submitReport } from '../services/dataService';
 import { playNotificationTone } from '../utils/sound';
 import confetti from 'canvas-confetti';
 
+// Firestore documents are limited to 1 MB, and photos are stored inline as base64
+const MAX_PHOTO_CHARS = 160_000;
+const MAX_TOTAL_PHOTO_CHARS = 850_000;
+
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -84,6 +88,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [isProcessingImages, setIsProcessingImages] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -160,7 +165,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 1200;
+          const maxDim = 1000;
 
           if (width > height && width > maxDim) {
             height = Math.round((height * maxDim) / width);
@@ -175,7 +180,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            // Keep each photo small (~120 KB) so the report fits Firestore's 1 MB document limit
+            let quality = 0.7;
+            let dataUrl = canvas.toDataURL('image/jpeg', quality);
+            while (dataUrl.length > MAX_PHOTO_CHARS && quality > 0.3) {
+              quality -= 0.1;
+              dataUrl = canvas.toDataURL('image/jpeg', quality);
+            }
+            resolve(dataUrl);
           } else {
             resolve(e.target?.result as string);
           }
@@ -243,6 +255,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    setSubmitError('');
+
+    const totalPhotoChars = photos.reduce((sum, p) => sum + p.length, 0);
+    if (totalPhotoChars > MAX_TOTAL_PHOTO_CHARS) {
+      setSubmitError('Ukuran total foto terlalu besar. Kurangi jumlah foto dokumentasi lalu kirim ulang.');
+      return;
+    }
 
     let totalRegistrants = 0;
     let totalSchools = 0;
@@ -326,6 +345,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       }, 1200);
     } catch (err) {
       console.error('Submit report failed:', err);
+      setSubmitError('Laporan gagal dikirim. Periksa koneksi internet atau kurangi jumlah foto, lalu coba lagi.');
       setIsSubmitting(false);
     }
   };
@@ -1002,6 +1022,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
 
             {/* Footer Form */}
+            {submitError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
+                {submitError}
+              </div>
+            )}
+
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
               <div className="text-xs text-slate-500">
                 Panitia Pelapor: <span className="font-bold text-slate-800">{reporterName}</span>

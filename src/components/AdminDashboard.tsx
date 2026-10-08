@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { RegionData, ReportItem } from '../types';
 import { AnalyticsCharts } from './AnalyticsCharts';
-import { addNewRegion, clearAllDatabaseData, deleteRegion } from '../services/dataService';
+import { addNewRegion, clearAllDatabaseData, deleteRegion, deleteReport } from '../services/dataService';
 import confetti from 'canvas-confetti';
 
 interface AdminDashboardProps {
@@ -161,6 +161,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       console.error('Failed to delete region:', err);
     } finally {
       setIsDeletingRegion(false);
+    }
+  };
+
+  const [reportToDelete, setReportToDelete] = useState<ReportItem | null>(null);
+  const [isDeletingReport, setIsDeletingReport] = useState(false);
+  const [deleteReportError, setDeleteReportError] = useState('');
+
+  const handleConfirmDeleteReport = async () => {
+    if (!reportToDelete) return;
+    setIsDeletingReport(true);
+    setDeleteReportError('');
+    try {
+      await deleteReport(reportToDelete);
+      setReportToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      setDeleteReportError('Laporan gagal dihapus. Periksa koneksi internet lalu coba lagi.');
+    } finally {
+      setIsDeletingReport(false);
     }
   };
 
@@ -517,13 +536,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Eye className="w-3.5 h-3.5" />
                       Detail
                     </button>
-                    <button
-                      onClick={() => onOpenVerify(report)}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Verifikasi Sekarang
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setReportToDelete(report)}
+                        title="Hapus laporan"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onOpenVerify(report)}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Verifikasi Sekarang
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -753,6 +781,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             Verifikasi
                           </button>
                         )}
+                        <button
+                          onClick={() => setReportToDelete(report)}
+                          title="Hapus laporan"
+                          className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-[11px] font-medium transition"
+                        >
+                          Hapus
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -963,6 +998,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>{isDeletingRegion ? 'Menghapus...' : 'Ya, Hapus Wilayah'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Konfirmasi Hapus Laporan */}
+      {reportToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-rose-950 to-rose-800 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 flex items-center justify-center text-white border border-rose-400/30">
+                  <Trash2 className="w-5 h-5 text-rose-300" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-rose-300 uppercase tracking-wider block">
+                    Konfirmasi Hapus Laporan
+                  </span>
+                  <h3 className="text-base font-bold text-white truncate max-w-[16rem]">
+                    {reportToDelete.title}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => { setReportToDelete(null); setDeleteReportError(''); }}
+                disabled={isDeletingReport}
+                className="p-1.5 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Laporan ini akan dihapus permanen. Gunakan untuk laporan uji coba atau laporan dengan data yang tidak akurat.
+              </p>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Provinsi:</span>
+                  <span className="font-semibold text-slate-800">{reportToDelete.regionName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Pelapor:</span>
+                  <span className="font-semibold text-slate-800">{reportToDelete.reporterName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tanggal Kegiatan:</span>
+                  <span className="font-semibold text-slate-800">{reportToDelete.activityDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Dampak yang Dibatalkan:</span>
+                  <span className="font-semibold text-rose-700">
+                    -{reportToDelete.registrantsAdded || 0} pendaftar, -{reportToDelete.schoolsVisited || 0} sekolah
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-800">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  Capaian pendaftar & sekolah Provinsi {reportToDelete.regionName} akan dikurangi sesuai isi laporan ini. Tindakan ini tidak dapat dibatalkan.
+                </span>
+              </div>
+
+              {deleteReportError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
+                  {deleteReportError}
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setReportToDelete(null); setDeleteReportError(''); }}
+                  disabled={isDeletingReport}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteReport}
+                  disabled={isDeletingReport}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-xs disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingReport ? 'Menghapus...' : 'Ya, Hapus Laporan'}</span>
                 </button>
               </div>
             </div>
