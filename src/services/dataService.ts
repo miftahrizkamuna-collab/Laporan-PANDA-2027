@@ -7,7 +7,9 @@ import {
   deleteDoc,
   onSnapshot, 
   query, 
-  increment
+  where,
+  increment,
+  runTransaction
 } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase/config';
 import { ReportItem, NotificationItem, RegionData } from '../types';
@@ -550,6 +552,51 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
     return newId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `reports/${newId}`);
+  }
+}
+
+// Hapus satu laporan (uji coba / data tidak akurat) oleh Admin Pusat.
+// Capaian wilayah yang sebelumnya ditambahkan oleh laporan ini ikut dikurangi agar angka tetap akurat.
+export async function deleteReport(report: ReportItem) {
+  const path = `reports/${report.id}`;
+  try {
+    const sdAdded = Number(report.schoolsSdMiVisited) || 0;
+    const smpAdded = Number(report.schoolsSmpMtsVisited) || 0;
+    const totalSchoolsAdded = (sdAdded + smpAdded) || Number(report.schoolsVisited) || 0;
+    const registrantsAdded = Number(report.registrantsAdded) || 0;
+
+    const reportRef = doc(db, 'reports', report.id);
+    const regRef = doc(db, 'regions', report.regionId);
+
+    await runTransaction(db, async (tx) => {
+      const regSnap = await tx.get(regRef);
+      if (regSnap.exists()) {
+        const reg = regSnap.data() as RegionData;
+        const subtract = (current: number | undefined, amount: number) =>
+          Math.max(0, (Number(current) || 0) - amount);
+        tx.update(regRef, {
+          currentRegistrants: subtract(reg.currentRegistrants, registrantsAdded),
+          currentSchoolsSdMi: subtract(reg.currentSchoolsSdMi, sdAdded),
+          currentSchoolsSmpMts: subtract(reg.currentSchoolsSmpMts, smpAdded),
+          currentSchools: subtract(reg.currentSchools, totalSchoolsAdded),
+        });
+      }
+      tx.delete(reportRef);
+    });
+
+    // Bersihkan notifikasi yang merujuk ke laporan ini
+    try {
+      const notifSnapshot = await getDocs(
+        query(collection(db, 'notifications'), where('reportId', '==', report.id))
+      );
+      for (const docSnap of notifSnapshot.docs) {
+        await deleteDoc(docSnap.ref);
+      }
+    } catch (e) {
+      console.warn('Cleanup report notifications note:', e);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
