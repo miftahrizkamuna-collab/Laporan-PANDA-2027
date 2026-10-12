@@ -52,7 +52,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Pastikan tidak ada sesi admin yang tersisa otomatis saat pertama kali dibuka
     sessionStorage.removeItem('sensei_admin_logged_in');
 
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 400);
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      clearTimeout(timer);
       setCurrentUser(user);
       if (user) {
         setIsSimulated(false);
@@ -72,7 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   const loginAdmin = (username: string, pass: string): boolean => {

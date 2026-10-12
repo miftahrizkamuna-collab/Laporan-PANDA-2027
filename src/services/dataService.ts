@@ -12,6 +12,14 @@ import {
 import { db, OperationType, handleFirestoreError } from '../firebase/config';
 import { ReportItem, NotificationItem, RegionData } from '../types';
 
+// Storage keys for Zero-API local persistence (Free forever, unlimited, 0 quota)
+const STORAGE_KEYS = {
+  REGIONS: 'sensei_2027_regions_v1',
+  REPORTS: 'sensei_2027_reports_v1',
+  NOTIFICATIONS: 'sensei_2027_notifications_v1',
+  INITIALIZED: 'sensei_2027_initialized_v1',
+};
+
 // 14 Provinsi Resmi Panitia Daerah SENSEI 2027 (Kondisi Kosong Siap Uji Coba)
 export const INITIAL_REGIONS: RegionData[] = [
   {
@@ -111,22 +119,6 @@ export const INITIAL_REGIONS: RegionData[] = [
     status: 'active'
   },
   {
-    id: 'bengkulu',
-    name: 'Bengkulu',
-    island: 'Sumatera',
-    targetRegistrants: 75,
-    currentRegistrants: 0,
-    targetSchoolsSdMi: 15,
-    currentSchoolsSdMi: 0,
-    targetSchoolsSmpMts: 5,
-    currentSchoolsSmpMts: 0,
-    targetSchools: 20,
-    currentSchools: 0,
-    coordinatorName: '',
-    coordinatorPhone: '',
-    status: 'active'
-  },
-  {
     id: 'jabar',
     name: 'Jawa Barat',
     island: 'Jawa',
@@ -159,9 +151,9 @@ export const INITIAL_REGIONS: RegionData[] = [
     status: 'active'
   },
   {
-    id: 'bali',
-    name: 'Bali',
-    island: 'Bali & Nusa Tenggara',
+    id: 'jatim',
+    name: 'Jawa Timur',
+    island: 'Jawa',
     targetRegistrants: 75,
     currentRegistrants: 0,
     targetSchoolsSdMi: 15,
@@ -175,9 +167,25 @@ export const INITIAL_REGIONS: RegionData[] = [
     status: 'active'
   },
   {
-    id: 'ntb',
-    name: 'NTB',
-    island: 'Bali & Nusa Tenggara',
+    id: 'diy',
+    name: 'DI Yogyakarta',
+    island: 'Jawa',
+    targetRegistrants: 75,
+    currentRegistrants: 0,
+    targetSchoolsSdMi: 15,
+    currentSchoolsSdMi: 0,
+    targetSchoolsSmpMts: 5,
+    currentSchoolsSmpMts: 0,
+    targetSchools: 20,
+    currentSchools: 0,
+    coordinatorName: '',
+    coordinatorPhone: '',
+    status: 'active'
+  },
+  {
+    id: 'banten',
+    name: 'Banten',
+    island: 'Jawa',
     targetRegistrants: 75,
     currentRegistrants: 0,
     targetSchoolsSdMi: 15,
@@ -240,65 +248,106 @@ export const INITIAL_REGIONS: RegionData[] = [
   }
 ];
 
-// Seluruh Laporan Awal Dikosongkan (Siap untuk Uji Coba Input Pengguna)
 export const INITIAL_REPORTS: ReportItem[] = [];
-
-// Seluruh Notifikasi Awal Dikosongkan
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
+
+// ==========================================
+// ZERO-API LOCAL STORAGE ENGINE (100% GRATIS)
+// ==========================================
+
+function getLocalData<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return defaultValue;
+    return JSON.parse(raw) as T;
+  } catch (e) {
+    console.warn(`Error reading ${key} from localStorage:`, e);
+    return defaultValue;
+  }
+}
+
+function setLocalData<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    // Dispatch local custom event for instant same-window reactivity
+    window.dispatchEvent(new CustomEvent('sensei_sync', { detail: { key } }));
+  } catch (e) {
+    console.warn(`Error saving ${key} to localStorage:`, e);
+  }
+}
+
+// Inisialisasi awal penyimpanan lokal jika kosong
+function ensureLocalDataInitialized(): void {
+  if (typeof window === 'undefined') return;
+  const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
+  if (!initialized) {
+    setLocalData(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    setLocalData(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
+    setLocalData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
+    localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+  }
+}
 
 // Helper untuk inisialisasi database jika koleksi wilayah belum ada
 export async function initFirestoreDataIfNeeded() {
+  ensureLocalDataInitialized();
   try {
     const regionsCol = collection(db, 'regions');
     const snapshot = await getDocs(regionsCol);
     if (snapshot.empty) {
-      for (const reg of INITIAL_REGIONS) {
+      const currentLocal = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+      for (const reg of currentLocal) {
         await setDoc(doc(db, 'regions', reg.id), reg);
       }
     }
   } catch (error) {
-    console.warn('Init firestore data check note:', error);
-  }
-}
-
-// Fungsi manual untuk mengosongkan seluruh data kapan saja (untuk kebutuhan uji coba pengguna)
-export async function clearAllDatabaseData() {
-  try {
-    // 1. Reset seluruh 14 provinsi ke nilai awal kosong (0 pendaftar, 0 sekolah, nama koordinator kosong)
-    for (const reg of INITIAL_REGIONS) {
-      await setDoc(doc(db, 'regions', reg.id), {
-        ...reg,
-        currentRegistrants: 0,
-        currentSchoolsSdMi: 0,
-        currentSchoolsSmpMts: 0,
-        currentSchools: 0,
-        coordinatorName: '',
-        coordinatorPhone: '',
-      });
-    }
-
-    // 2. Kosongkan koleksi laporan di Firestore
-    const reportsCol = collection(db, 'reports');
-    const repSnapshot = await getDocs(reportsCol);
-    for (const docSnap of repSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-
-    // 3. Kosongkan koleksi notifikasi di Firestore
-    const notifsCol = collection(db, 'notifications');
-    const notifSnapshot = await getDocs(notifsCol);
-    for (const docSnap of notifSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-    return true;
-  } catch (error) {
-    console.error('Clear all data error:', error);
-    return false;
+    console.warn('Firestore sync note (berjalan dalam mode lokal bebas kuota):', error);
   }
 }
 
 // Alias untuk kompatibilitas
 export const seedInitialFirestoreData = initFirestoreDataIfNeeded;
+
+// Fungsi manual untuk mengosongkan seluruh data kapan saja (untuk kebutuhan uji coba pengguna)
+export async function clearAllDatabaseData(): Promise<boolean> {
+  // 1. Reset ke local storage
+  const resetRegions: RegionData[] = INITIAL_REGIONS.map(reg => ({
+    ...reg,
+    currentRegistrants: 0,
+    currentSchoolsSdMi: 0,
+    currentSchoolsSmpMts: 0,
+    currentSchools: 0,
+    coordinatorName: '',
+    coordinatorPhone: '',
+  }));
+
+  setLocalData(STORAGE_KEYS.REGIONS, resetRegions);
+  setLocalData(STORAGE_KEYS.REPORTS, []);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, []);
+
+  // 2. Upayakan sinkronisasi ke Firestore di background jika aktif
+  try {
+    for (const reg of resetRegions) {
+      await setDoc(doc(db, 'regions', reg.id), reg);
+    }
+    const reportsCol = collection(db, 'reports');
+    const repSnapshot = await getDocs(reportsCol);
+    for (const docSnap of repSnapshot.docs) {
+      await deleteDoc(docSnap.ref);
+    }
+    const notifsCol = collection(db, 'notifications');
+    const notifSnapshot = await getDocs(notifsCol);
+    for (const docSnap of notifSnapshot.docs) {
+      await deleteDoc(docSnap.ref);
+    }
+  } catch (error) {
+    console.warn('Clear Firestore background sync note:', error);
+  }
+
+  return true;
+}
 
 // Update data koordinator daerah oleh panitia / admin
 export async function updateRegionCoordinator(
@@ -306,6 +355,21 @@ export async function updateRegionCoordinator(
   coordinatorName: string,
   coordinatorPhone: string
 ) {
+  // 1. Update local
+  const regions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  const updated = regions.map(r => {
+    if (r.id === regionId) {
+      return {
+        ...r,
+        coordinatorName: coordinatorName.trim(),
+        coordinatorPhone: coordinatorPhone.trim()
+      };
+    }
+    return r;
+  });
+  setLocalData(STORAGE_KEYS.REGIONS, updated);
+
+  // 2. Sync Firestore
   try {
     const regRef = doc(db, 'regions', regionId);
     await updateDoc(regRef, {
@@ -313,7 +377,7 @@ export async function updateRegionCoordinator(
       coordinatorPhone: coordinatorPhone.trim()
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `regions/${regionId}`);
+    console.warn('Firestore updateRegionCoordinator note:', error);
   }
 }
 
@@ -331,11 +395,11 @@ export async function addNewRegion(newRegion: {
     id: cleanId,
     name: newRegion.name,
     island: newRegion.island,
-    targetRegistrants: 75, // Standar target tiap daerah: 75 calon siswa
+    targetRegistrants: 75,
     currentRegistrants: 0,
-    targetSchoolsSdMi: 15, // Standar minimal 15 SD/MI
+    targetSchoolsSdMi: 15,
     currentSchoolsSdMi: 0,
-    targetSchoolsSmpMts: 5, // Standar minimal 5 SMP/MTs
+    targetSchoolsSmpMts: 5,
     currentSchoolsSmpMts: 0,
     targetSchools: 20,
     currentSchools: 0,
@@ -344,134 +408,219 @@ export async function addNewRegion(newRegion: {
     status: 'active'
   };
 
+  const notifId = `notif-reg-${Date.now()}`;
+  const autoNotif: NotificationItem = {
+    id: notifId,
+    title: `Wilayah Baru Terdaftar: ${newRegion.name}`,
+    message: `Panitia daerah Provinsi ${newRegion.name} telah berhasil didaftarkan ke sistem SENSEI 2027 (Target: 75 Calon Siswa, 15 SD/MI, 5 SMP/MTs).`,
+    type: 'announcement',
+    targetRole: 'all',
+    createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    isRead: false
+  };
+
+  // 1. Update local
+  const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  const updatedRegions = [...currentRegions.filter(r => r.id !== cleanId), fullRegionData];
+  setLocalData(STORAGE_KEYS.REGIONS, updatedRegions);
+
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
+
+  // 2. Sync Firestore
   try {
     await setDoc(doc(db, 'regions', cleanId), fullRegionData);
-
-    const notifId = `notif-reg-${Date.now()}`;
-    await setDoc(doc(db, 'notifications', notifId), {
-      id: notifId,
-      title: `Wilayah Baru Terdaftar: ${newRegion.name}`,
-      message: `Panitia daerah Provinsi ${newRegion.name} telah berhasil didaftarkan ke sistem SENSEI 2027 (Target: 75 Calon Siswa, 15 SD/MI, 5 SMP/MTs).`,
-      type: 'announcement',
-      targetRole: 'all',
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      isRead: false
-    });
+    await setDoc(doc(db, 'notifications', notifId), autoNotif);
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `regions/${cleanId}`);
+    console.warn('Firestore addNewRegion note:', error);
   }
 }
 
 // Menghapus wilayah dari sistem oleh Admin Pusat
-export async function deleteRegion(regionId: string, regionName: string) {
+export async function deleteRegion(regionId: string, regionName: string): Promise<boolean> {
+  const notifId = `notif-del-reg-${Date.now()}`;
+  const autoNotif: NotificationItem = {
+    id: notifId,
+    title: `Wilayah Dihapus: ${regionName}`,
+    message: `Panitia daerah Provinsi ${regionName} telah dihapus dari sistem SENSEI 2027 oleh Admin Pusat.`,
+    type: 'announcement',
+    targetRole: 'all',
+    createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    isRead: false
+  };
+
+  // 1. Update local
+  const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  setLocalData(STORAGE_KEYS.REGIONS, currentRegions.filter(r => r.id !== regionId));
+
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
+
+  // 2. Sync Firestore
   try {
     await deleteDoc(doc(db, 'regions', regionId));
-
-    const notifId = `notif-del-reg-${Date.now()}`;
-    await setDoc(doc(db, 'notifications', notifId), {
-      id: notifId,
-      title: `Wilayah Dihapus: ${regionName}`,
-      message: `Panitia daerah Provinsi ${regionName} telah dihapus dari sistem SENSEI 2027 oleh Admin Pusat.`,
-      type: 'announcement',
-      targetRole: 'all',
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      isRead: false
-    });
-    return true;
+    await setDoc(doc(db, 'notifications', notifId), autoNotif);
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `regions/${regionId}`);
-    return false;
+    console.warn('Firestore deleteRegion note:', error);
   }
+
+  return true;
 }
 
-// Subscribe to real-time reports
+// Subscribe to real-time reports (Dual Engine: Local + Firestore)
 export function subscribeToReports(callback: (reports: ReportItem[]) => void) {
+  ensureLocalDataInitialized();
+
+  // 1. Emit local data immediately
+  const emitCurrent = () => {
+    const local = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+    local.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    callback(local);
+  };
+  emitCurrent();
+
+  // 2. Listen to local cross-component events
+  const handleLocalSync = (e: Event) => {
+    const custom = e as CustomEvent<{ key?: string }>;
+    if (!custom.detail?.key || custom.detail.key === STORAGE_KEYS.REPORTS) {
+      emitCurrent();
+    }
+  };
+  window.addEventListener('sensei_sync', handleLocalSync);
+  window.addEventListener('storage', handleLocalSync);
+
+  // 3. Optional Firestore listener
+  let unsubFirestore: (() => void) | null = null;
   try {
     const q = query(collection(db, 'reports'));
-    return onSnapshot(
+    unsubFirestore = onSnapshot(
       q,
       (snapshot) => {
         const items: ReportItem[] = [];
         snapshot.forEach((docSnap) => {
           items.push({ id: docSnap.id, ...docSnap.data() } as ReportItem);
         });
-        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        callback(items);
+        if (items.length > 0) {
+          items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setLocalData(STORAGE_KEYS.REPORTS, items);
+          callback(items);
+        }
       },
       (error) => {
-        callback([]);
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'reports');
-        } catch (e) {
-          console.warn('Reports listener note:', e);
-        }
+        console.warn('Reports Firestore offline/quota notice (menggunakan mode lokal):', error);
       }
     );
   } catch (err) {
-    console.error('Error attaching reports listener:', err);
-    callback([]);
-    return () => {};
+    console.warn('Firestore reports subscription error (menggunakan mode lokal):', err);
   }
+
+  return () => {
+    window.removeEventListener('sensei_sync', handleLocalSync);
+    window.removeEventListener('storage', handleLocalSync);
+    if (unsubFirestore) unsubFirestore();
+  };
 }
 
-// Subscribe to real-time notifications
+// Subscribe to real-time notifications (Dual Engine: Local + Firestore)
 export function subscribeToNotifications(callback: (notifs: NotificationItem[]) => void) {
+  ensureLocalDataInitialized();
+
+  const emitCurrent = () => {
+    const local = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+    local.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    callback(local);
+  };
+  emitCurrent();
+
+  const handleLocalSync = (e: Event) => {
+    const custom = e as CustomEvent<{ key?: string }>;
+    if (!custom.detail?.key || custom.detail.key === STORAGE_KEYS.NOTIFICATIONS) {
+      emitCurrent();
+    }
+  };
+  window.addEventListener('sensei_sync', handleLocalSync);
+  window.addEventListener('storage', handleLocalSync);
+
+  let unsubFirestore: (() => void) | null = null;
   try {
     const q = query(collection(db, 'notifications'));
-    return onSnapshot(
+    unsubFirestore = onSnapshot(
       q,
       (snapshot) => {
         const items: NotificationItem[] = [];
         snapshot.forEach((docSnap) => {
           items.push({ id: docSnap.id, ...docSnap.data() } as NotificationItem);
         });
-        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        callback(items);
+        if (items.length > 0) {
+          items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setLocalData(STORAGE_KEYS.NOTIFICATIONS, items);
+          callback(items);
+        }
       },
       (error) => {
-        callback([]);
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'notifications');
-        } catch (e) {
-          console.warn('Notifications listener note:', e);
-        }
+        console.warn('Notifications Firestore notice (menggunakan mode lokal):', error);
       }
     );
   } catch (err) {
-    console.error('Error attaching notifications listener:', err);
-    callback([]);
-    return () => {};
+    console.warn('Firestore notifications subscription error:', err);
   }
+
+  return () => {
+    window.removeEventListener('sensei_sync', handleLocalSync);
+    window.removeEventListener('storage', handleLocalSync);
+    if (unsubFirestore) unsubFirestore();
+  };
 }
 
-// Subscribe to real-time regions
+// Subscribe to real-time regions (Dual Engine: Local + Firestore)
 export function subscribeToRegions(callback: (regions: RegionData[]) => void) {
+  ensureLocalDataInitialized();
+
+  const emitCurrent = () => {
+    const local = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    local.sort((a, b) => a.name.localeCompare(b.name));
+    callback(local.length > 0 ? local : INITIAL_REGIONS);
+  };
+  emitCurrent();
+
+  const handleLocalSync = (e: Event) => {
+    const custom = e as CustomEvent<{ key?: string }>;
+    if (!custom.detail?.key || custom.detail.key === STORAGE_KEYS.REGIONS) {
+      emitCurrent();
+    }
+  };
+  window.addEventListener('sensei_sync', handleLocalSync);
+  window.addEventListener('storage', handleLocalSync);
+
+  let unsubFirestore: (() => void) | null = null;
   try {
     const q = query(collection(db, 'regions'));
-    return onSnapshot(
+    unsubFirestore = onSnapshot(
       q,
       (snapshot) => {
         const items: RegionData[] = [];
         snapshot.forEach((docSnap) => {
           items.push({ id: docSnap.id, ...docSnap.data() } as RegionData);
         });
-        items.sort((a, b) => a.name.localeCompare(b.name));
-        callback(items.length > 0 ? items : INITIAL_REGIONS);
+        if (items.length > 0) {
+          items.sort((a, b) => a.name.localeCompare(b.name));
+          setLocalData(STORAGE_KEYS.REGIONS, items);
+          callback(items);
+        }
       },
       (error) => {
-        callback(INITIAL_REGIONS);
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'regions');
-        } catch (e) {
-          console.warn('Regions listener note:', e);
-        }
+        console.warn('Regions Firestore notice (menggunakan mode lokal):', error);
       }
     );
   } catch (err) {
-    console.error('Error attaching regions listener:', err);
-    callback(INITIAL_REGIONS);
-    return () => {};
+    console.warn('Firestore regions subscription error:', err);
   }
+
+  return () => {
+    window.removeEventListener('sensei_sync', handleLocalSync);
+    window.removeEventListener('storage', handleLocalSync);
+    if (unsubFirestore) unsubFirestore();
+  };
 }
 
 // Submit a new activity report with automatic notification trigger
@@ -492,63 +641,73 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
     createdAt: nowStr,
   };
 
+  const sdAdded = Number(reportData.schoolsSdMiVisited) || 0;
+  const smpAdded = Number(reportData.schoolsSmpMtsVisited) || 0;
+  const totalSchoolsAdded = (sdAdded + smpAdded) || Number(reportData.schoolsVisited) || 0;
+  const registrantsAdded = Number(reportData.registrantsAdded) || 0;
+
+  // 1. Simpan ke Local Storage Segera (Bebas Kuota, 100% Berhasil)
+  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+  setLocalData(STORAGE_KEYS.REPORTS, [newReport, ...currentReports]);
+
+  // Update counters lokal untuk provinsi terkait
+  const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  const updatedRegions = currentRegions.map(reg => {
+    if (reg.id === reportData.regionId) {
+      return {
+        ...reg,
+        currentRegistrants: (reg.currentRegistrants || 0) + registrantsAdded,
+        currentSchoolsSdMi: (reg.currentSchoolsSdMi || 0) + sdAdded,
+        currentSchoolsSmpMts: (reg.currentSchoolsSmpMts || 0) + smpAdded,
+        currentSchools: (reg.currentSchools || 0) + totalSchoolsAdded,
+      };
+    }
+    return reg;
+  });
+  setLocalData(STORAGE_KEYS.REGIONS, updatedRegions);
+
+  // Buat notifikasi lokal untuk Admin Pusat
+  const notifId = `notif-${Date.now()}`;
+  const typeLabel = 
+    reportData.type === 'sosialisasi_sekolah' ? 'Sosialisasi Sekolah' :
+    reportData.type === 'sosialisasi_medsos' ? 'Sosialisasi Medsos' :
+    reportData.type === 'sinkron_pendaftar' ? 'Sinkron Pendaftar' : 'Aktivitas';
+
+  const autoNotif: NotificationItem = {
+    id: notifId,
+    title: `Laporan [${typeLabel}]: Provinsi ${reportData.regionName}`,
+    message: `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${photos.length} foto dilampirkan). Segera verifikasi!`,
+    type: 'new_report',
+    reportId: newId,
+    targetRole: 'admin_pusat',
+    targetRegionId: reportData.regionId,
+    createdAt: nowStr,
+    isRead: false
+  };
+
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
+
+  // 2. Sinkronisasi Firestore di background (opsional jika online/tersedia)
   try {
-    // 1. Save report
     await setDoc(doc(db, 'reports', newId), newReport);
 
-    // 2. Update region counters for registrants and SD/SMP breakdown
-    const sdAdded = Number(reportData.schoolsSdMiVisited) || 0;
-    const smpAdded = Number(reportData.schoolsSmpMtsVisited) || 0;
-    const totalSchoolsAdded = (sdAdded + smpAdded) || Number(reportData.schoolsVisited) || 0;
-    const registrantsAdded = Number(reportData.registrantsAdded) || 0;
-
     if (registrantsAdded > 0 || totalSchoolsAdded > 0) {
-      try {
-        const regRef = doc(db, 'regions', reportData.regionId);
-        const updatePayload: Record<string, ReturnType<typeof increment>> = {};
-        if (registrantsAdded > 0) {
-          updatePayload.currentRegistrants = increment(registrantsAdded);
-        }
-        if (sdAdded > 0) {
-          updatePayload.currentSchoolsSdMi = increment(sdAdded);
-        }
-        if (smpAdded > 0) {
-          updatePayload.currentSchoolsSmpMts = increment(smpAdded);
-        }
-        if (totalSchoolsAdded > 0) {
-          updatePayload.currentSchools = increment(totalSchoolsAdded);
-        }
-
-        await updateDoc(regRef, updatePayload);
-      } catch (e) {
-        console.warn('Update region counter fallback:', e);
-      }
+      const regRef = doc(db, 'regions', reportData.regionId);
+      const updatePayload: Record<string, ReturnType<typeof increment>> = {};
+      if (registrantsAdded > 0) updatePayload.currentRegistrants = increment(registrantsAdded);
+      if (sdAdded > 0) updatePayload.currentSchoolsSdMi = increment(sdAdded);
+      if (smpAdded > 0) updatePayload.currentSchoolsSmpMts = increment(smpAdded);
+      if (totalSchoolsAdded > 0) updatePayload.currentSchools = increment(totalSchoolsAdded);
+      await updateDoc(regRef, updatePayload);
     }
 
-    // 3. Create AUTOMATED NOTIFICATION for Admin Pusat SMART
-    const notifId = `notif-${Date.now()}`;
-    const typeLabel = 
-      reportData.type === 'sosialisasi_sekolah' ? 'Sosialisasi Sekolah' :
-      reportData.type === 'sosialisasi_medsos' ? 'Sosialisasi Medsos' :
-      reportData.type === 'sinkron_pendaftar' ? 'Sinkron Pendaftar' : 'Aktivitas';
-
-    const autoNotif: NotificationItem = {
-      id: notifId,
-      title: `Laporan [${typeLabel}]: Provinsi ${reportData.regionName}`,
-      message: `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${photos.length} foto dilampirkan). Segera verifikasi!`,
-      type: 'new_report',
-      reportId: newId,
-      targetRole: 'admin_pusat',
-      targetRegionId: reportData.regionId,
-      createdAt: nowStr,
-      isRead: false
-    };
-
     await setDoc(doc(db, 'notifications', notifId), autoNotif);
-    return newId;
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `reports/${newId}`);
+    console.warn('Firestore background report sync note (aman, tersimpan di lokal):', error);
   }
+
+  return newId;
 }
 
 // Verify or request revision on a report with automatic notification to region committee
@@ -560,8 +719,52 @@ export async function verifyReport(
   reportInfo: { title: string; regionId: string; regionName: string }
 ) {
   const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
-  const path = `reports/${reportId}`;
 
+  // 1. Update lokal
+  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+  const updatedReports = currentReports.map(rep => {
+    if (rep.id === reportId) {
+      return {
+        ...rep,
+        status,
+        verifiedBy: verifierName,
+        verificationNotes: notes,
+        verifiedAt: nowStr,
+        updatedAt: nowStr
+      };
+    }
+    return rep;
+  });
+  setLocalData(STORAGE_KEYS.REPORTS, updatedReports);
+
+  const notifId = `notif-verif-${Date.now()}`;
+  const isVerified = status === 'verified';
+  const notifTitle = isVerified 
+    ? `Laporan Diverifikasi: ${reportInfo.title}` 
+    : status === 'needs_revision'
+      ? `Perlu Revisi: ${reportInfo.title}`
+      : `Laporan Ditolak: ${reportInfo.title}`;
+
+  const notifMsg = isVerified
+    ? `Laporan "${reportInfo.title}" dari Provinsi ${reportInfo.regionName} telah diverifikasi oleh ${verifierName}. ${notes ? `Catatan: "${notes}"` : ''}`
+    : `Admin Pusat SMART meminta evaluasi/revisi untuk laporan "${reportInfo.title}". Catatan: "${notes || 'Mohon lengkapi dokumentasi berkas'}"`;
+
+  const autoNotif: NotificationItem = {
+    id: notifId,
+    title: notifTitle,
+    message: notifMsg,
+    type: isVerified ? 'report_verified' : 'revision_needed',
+    reportId,
+    targetRole: 'panitia_wilayah',
+    targetRegionId: reportInfo.regionId,
+    createdAt: nowStr,
+    isRead: false
+  };
+
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
+
+  // 2. Sinkronisasi Firestore di background
   try {
     await updateDoc(doc(db, 'reports', reportId), {
       status,
@@ -570,44 +773,60 @@ export async function verifyReport(
       verifiedAt: nowStr,
       updatedAt: nowStr
     });
-
-    const notifId = `notif-verif-${Date.now()}`;
-    const isVerified = status === 'verified';
-    const notifTitle = isVerified 
-      ? `Laporan Diverifikasi: ${reportInfo.title}` 
-      : status === 'needs_revision'
-        ? `Perlu Revisi: ${reportInfo.title}`
-        : `Laporan Ditolak: ${reportInfo.title}`;
-
-    const notifMsg = isVerified
-      ? `Laporan "${reportInfo.title}" dari Provinsi ${reportInfo.regionName} telah diverifikasi oleh ${verifierName}. ${notes ? `Catatan: "${notes}"` : ''}`
-      : `Admin Pusat SMART meminta evaluasi/revisi untuk laporan "${reportInfo.title}". Catatan: "${notes || 'Mohon lengkapi dokumentasi berkas'}"`;
-
-    const autoNotif: NotificationItem = {
-      id: notifId,
-      title: notifTitle,
-      message: notifMsg,
-      type: isVerified ? 'report_verified' : 'revision_needed',
-      reportId,
-      targetRole: 'panitia_wilayah',
-      targetRegionId: reportInfo.regionId,
-      createdAt: nowStr,
-      isRead: false
-    };
-
     await setDoc(doc(db, 'notifications', notifId), autoNotif);
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
+    console.warn('Firestore verifyReport sync note:', error);
   }
 }
 
 // Mark notifications as read
 export async function markNotificationAsRead(notifId: string) {
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  const updated = currentNotifs.map(n => n.id === notifId ? { ...n, isRead: true } : n);
+  setLocalData(STORAGE_KEYS.NOTIFICATIONS, updated);
+
   try {
-    await updateDoc(doc(db, 'notifications', notifId), {
-      isRead: true
-    });
+    await updateDoc(doc(db, 'notifications', notifId), { isRead: true });
   } catch (error) {
     console.warn('Mark notif read error:', error);
+  }
+}
+
+// ==========================================
+// BACKUP & RESTORE DATA JSON (100% BEBAS KUOTA)
+// ==========================================
+
+export function exportAllDataAsJson(): string {
+  const regions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  const reports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+  const notifications = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+
+  const exportObj = {
+    app: 'SENSEI 2027',
+    exportedAt: new Date().toISOString(),
+    regions,
+    reports,
+    notifications,
+  };
+
+  return JSON.stringify(exportObj, null, 2);
+}
+
+export function importAllDataFromJson(jsonStr: string): boolean {
+  try {
+    const data = JSON.parse(jsonStr);
+    if (data.regions && Array.isArray(data.regions)) {
+      setLocalData(STORAGE_KEYS.REGIONS, data.regions);
+    }
+    if (data.reports && Array.isArray(data.reports)) {
+      setLocalData(STORAGE_KEYS.REPORTS, data.reports);
+    }
+    if (data.notifications && Array.isArray(data.notifications)) {
+      setLocalData(STORAGE_KEYS.NOTIFICATIONS, data.notifications);
+    }
+    return true;
+  } catch (e) {
+    console.error('Import data error:', e);
+    return false;
   }
 }

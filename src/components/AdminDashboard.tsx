@@ -21,11 +21,12 @@ import {
   X,
   RotateCcw,
   ArrowLeft,
-  Trash2
+  Trash2,
+  Upload
 } from 'lucide-react';
 import { RegionData, ReportItem } from '../types';
 import { AnalyticsCharts } from './AnalyticsCharts';
-import { addNewRegion, clearAllDatabaseData, deleteRegion } from '../services/dataService';
+import { addNewRegion, clearAllDatabaseData, deleteRegion, exportAllDataAsJson, importAllDataFromJson } from '../services/dataService';
 import confetti from 'canvas-confetti';
 
 interface AdminDashboardProps {
@@ -107,6 +108,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportJSON = () => {
+    const jsonStr = exportAllDataAsJson();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_data_sensei2027_${new Date().toISOString().substring(0,10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        const ok = importAllDataFromJson(content);
+        if (ok) {
+          alert('Data berhasil dipulihkan dari file backup!');
+          window.location.reload();
+        } else {
+          alert('Format file backup tidak valid.');
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleSendBroadcast = (e: React.FormEvent) => {
@@ -235,10 +269,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs backdrop-blur-xs border border-white/10 transition"
+              title="Unduh rekap laporan dalam format CSV"
             >
               <Download className="w-4 h-4" />
               Ekspor CSV
             </button>
+            <button
+              onClick={handleExportJSON}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs backdrop-blur-xs border border-white/10 transition"
+              title="Unduh seluruh database (wilayah, laporan, notifikasi) ke file JSON offline"
+            >
+              <Download className="w-4 h-4" />
+              Backup JSON
+            </button>
+            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs backdrop-blur-xs border border-white/10 transition cursor-pointer" title="Pulihkan data dari file JSON">
+              <Upload className="w-4 h-4" />
+              <span>Restore JSON</span>
+              <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+            </label>
             <button
               onClick={handleClearAllData}
               disabled={isClearingData}
