@@ -407,12 +407,21 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       });
 
       clearTimeout(safetyTimer);
-      playNotificationTone('success');
-      confetti({
-        particleCount: 55,
-        spread: 65,
-        origin: { y: 0.65 }
-      });
+      try {
+        playNotificationTone('success');
+      } catch {
+        // Safe fallback
+      }
+
+      try {
+        confetti({
+          particleCount: 55,
+          spread: 65,
+          origin: { y: 0.65 }
+        });
+      } catch {
+        // Safe fallback if canvas is restricted
+      }
 
       setShowSuccessToast(true);
       setTimeout(() => {

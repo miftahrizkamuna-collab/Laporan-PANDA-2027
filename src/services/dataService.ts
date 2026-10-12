@@ -733,7 +733,12 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
 
   // 2. Non-blocking sanitized Firestore background sync (fire-and-forget, never blocks UI)
   try {
-    const cleanReport = sanitizeForFirestore(newReport) as Record<string, unknown>;
+    // Safeguard Firestore 1MB doc size by keeping max 2 base64 photos in remote sync
+    const firestoreSyncDoc: ReportItem = {
+      ...newReport,
+      documentationPhotos: photos.length > 2 ? photos.slice(0, 2) : photos,
+    };
+    const cleanReport = sanitizeForFirestore(firestoreSyncDoc) as Record<string, unknown>;
     setDoc(doc(db, 'reports', newId), cleanReport).catch((err) => {
       console.warn('Background Firestore sync report notice:', err);
     });
@@ -745,7 +750,7 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
       if (sdAdded > 0) updatePayload.currentSchoolsSdMi = increment(sdAdded);
       if (smpAdded > 0) updatePayload.currentSchoolsSmpMts = increment(smpAdded);
       if (totalSchoolsAdded > 0) updatePayload.currentSchools = increment(totalSchoolsAdded);
-      updateDoc(regRef, updatePayload).catch((err) => {
+      setDoc(regRef, updatePayload, { merge: true }).catch((err) => {
         console.warn('Background Firestore sync counter notice:', err);
       });
     }
