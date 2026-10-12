@@ -9,7 +9,7 @@ import {
   query, 
   increment
 } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase/config';
+import { db } from '../firebase/config';
 import { ReportItem, NotificationItem, RegionData } from '../types';
 
 // Storage keys for Zero-API local persistence (Free forever, unlimited, 0 quota)
@@ -251,6 +251,25 @@ export const INITIAL_REGIONS: RegionData[] = [
 export const INITIAL_REPORTS: ReportItem[] = [];
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 
+// In-memory cache guarantees 100% immediate data availability
+let inMemoryRegions: RegionData[] = [...INITIAL_REGIONS];
+let inMemoryReports: ReportItem[] = [];
+let inMemoryNotifs: NotificationItem[] = [];
+
+// Utility: Clean any undefined values before sending to Firestore
+function sanitizeForFirestore(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v !== undefined) {
+      clean[k] = sanitizeForFirestore(v);
+    }
+  }
+  return clean;
+}
+
 // ==========================================
 // ZERO-API LOCAL STORAGE ENGINE (100% GRATIS)
 // ==========================================
@@ -259,8 +278,18 @@ function getLocalData<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue;
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return defaultValue;
-    return JSON.parse(raw) as T;
+    if (!raw) {
+      if (key === STORAGE_KEYS.REGIONS && inMemoryRegions.length > 0) return inMemoryRegions as unknown as T;
+      if (key === STORAGE_KEYS.REPORTS && inMemoryReports.length > 0) return inMemoryReports as unknown as T;
+      if (key === STORAGE_KEYS.NOTIFICATIONS && inMemoryNotifs.length > 0) return inMemoryNotifs as unknown as T;
+      return defaultValue;
+    }
+    const parsed = JSON.parse(raw) as T;
+    // Keep in-memory cache updated
+    if (key === STORAGE_KEYS.REGIONS && Array.isArray(parsed)) inMemoryRegions = parsed as unknown as RegionData[];
+    if (key === STORAGE_KEYS.REPORTS && Array.isArray(parsed)) inMemoryReports = parsed as unknown as ReportItem[];
+    if (key === STORAGE_KEYS.NOTIFICATIONS && Array.isArray(parsed)) inMemoryNotifs = parsed as unknown as NotificationItem[];
+    return parsed;
   } catch (e) {
     console.warn(`Error reading ${key} from localStorage:`, e);
     return defaultValue;
@@ -268,14 +297,33 @@ function getLocalData<T>(key: string, defaultValue: T): T {
 }
 
 function setLocalData<T>(key: string, value: T): void {
+  // Always update in-memory cache first
+  if (key === STORAGE_KEYS.REGIONS && Array.isArray(value)) inMemoryRegions = value as unknown as RegionData[];
+  if (key === STORAGE_KEYS.REPORTS && Array.isArray(value)) inMemoryReports = value as unknown as ReportItem[];
+  if (key === STORAGE_KEYS.NOTIFICATIONS && Array.isArray(value)) inMemoryNotifs = value as unknown as NotificationItem[];
+
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    // Dispatch local custom event for instant same-window reactivity
-    window.dispatchEvent(new CustomEvent('sensei_sync', { detail: { key } }));
   } catch (e) {
-    console.warn(`Error saving ${key} to localStorage:`, e);
+    console.warn(`LocalStorage quota notice for ${key}, falling back to memory/compact:`, e);
+    // If reports exceed localStorage 5MB limit, store without base64 photos in localStorage
+    if (key === STORAGE_KEYS.REPORTS && Array.isArray(value)) {
+      try {
+        const lightweight = (value as ReportItem[]).map((r, idx) => ({
+          ...r,
+          // keep photos for first 2 recent reports only to save space
+          documentationPhotos: idx < 2 ? r.documentationPhotos : [],
+        }));
+        localStorage.setItem(key, JSON.stringify(lightweight));
+      } catch {
+        // Fallback silently to memory
+      }
+    }
   }
+
+  // Dispatch local custom event for instant same-window reactivity
+  window.dispatchEvent(new CustomEvent('sensei_sync', { detail: { key } }));
 }
 
 // Inisialisasi awal penyimpanan lokal jika kosong
@@ -287,6 +335,11 @@ function ensureLocalDataInitialized(): void {
     setLocalData(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
     setLocalData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+  } else {
+    // Populate in-memory cache
+    getLocalData(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    getLocalData(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
+    getLocalData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
   }
 }
 
@@ -299,7 +352,8 @@ export async function initFirestoreDataIfNeeded() {
     if (snapshot.empty) {
       const currentLocal = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
       for (const reg of currentLocal) {
-        await setDoc(doc(db, 'regions', reg.id), reg);
+        const cleanReg = sanitizeForFirestore(reg) as Record<string, unknown>;
+        setDoc(doc(db, 'regions', reg.id), cleanReg).catch(() => {});
       }
     }
   } catch (error) {
@@ -312,7 +366,6 @@ export const seedInitialFirestoreData = initFirestoreDataIfNeeded;
 
 // Fungsi manual untuk mengosongkan seluruh data kapan saja (untuk kebutuhan uji coba pengguna)
 export async function clearAllDatabaseData(): Promise<boolean> {
-  // 1. Reset ke local storage
   const resetRegions: RegionData[] = INITIAL_REGIONS.map(reg => ({
     ...reg,
     currentRegistrants: 0,
@@ -327,21 +380,17 @@ export async function clearAllDatabaseData(): Promise<boolean> {
   setLocalData(STORAGE_KEYS.REPORTS, []);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, []);
 
-  // 2. Upayakan sinkronisasi ke Firestore di background jika aktif
+  // Background Firestore sync
   try {
     for (const reg of resetRegions) {
-      await setDoc(doc(db, 'regions', reg.id), reg);
+      setDoc(doc(db, 'regions', reg.id), sanitizeForFirestore(reg) as Record<string, unknown>).catch(() => {});
     }
-    const reportsCol = collection(db, 'reports');
-    const repSnapshot = await getDocs(reportsCol);
-    for (const docSnap of repSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-    const notifsCol = collection(db, 'notifications');
-    const notifSnapshot = await getDocs(notifsCol);
-    for (const docSnap of notifSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
+    getDocs(collection(db, 'reports')).then((repSnapshot) => {
+      repSnapshot.docs.forEach((docSnap) => deleteDoc(docSnap.ref).catch(() => {}));
+    }).catch(() => {});
+    getDocs(collection(db, 'notifications')).then((notifSnapshot) => {
+      notifSnapshot.docs.forEach((docSnap) => deleteDoc(docSnap.ref).catch(() => {}));
+    }).catch(() => {});
   } catch (error) {
     console.warn('Clear Firestore background sync note:', error);
   }
@@ -355,7 +404,6 @@ export async function updateRegionCoordinator(
   coordinatorName: string,
   coordinatorPhone: string
 ) {
-  // 1. Update local
   const regions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
   const updated = regions.map(r => {
     if (r.id === regionId) {
@@ -369,13 +417,12 @@ export async function updateRegionCoordinator(
   });
   setLocalData(STORAGE_KEYS.REGIONS, updated);
 
-  // 2. Sync Firestore
   try {
     const regRef = doc(db, 'regions', regionId);
-    await updateDoc(regRef, {
+    updateDoc(regRef, {
       coordinatorName: coordinatorName.trim(),
       coordinatorPhone: coordinatorPhone.trim()
-    });
+    }).catch(() => {});
   } catch (error) {
     console.warn('Firestore updateRegionCoordinator note:', error);
   }
@@ -419,7 +466,6 @@ export async function addNewRegion(newRegion: {
     isRead: false
   };
 
-  // 1. Update local
   const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
   const updatedRegions = [...currentRegions.filter(r => r.id !== cleanId), fullRegionData];
   setLocalData(STORAGE_KEYS.REGIONS, updatedRegions);
@@ -427,10 +473,9 @@ export async function addNewRegion(newRegion: {
   const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
 
-  // 2. Sync Firestore
   try {
-    await setDoc(doc(db, 'regions', cleanId), fullRegionData);
-    await setDoc(doc(db, 'notifications', notifId), autoNotif);
+    setDoc(doc(db, 'regions', cleanId), sanitizeForFirestore(fullRegionData) as Record<string, unknown>).catch(() => {});
+    setDoc(doc(db, 'notifications', notifId), sanitizeForFirestore(autoNotif) as Record<string, unknown>).catch(() => {});
   } catch (error) {
     console.warn('Firestore addNewRegion note:', error);
   }
@@ -449,17 +494,15 @@ export async function deleteRegion(regionId: string, regionName: string): Promis
     isRead: false
   };
 
-  // 1. Update local
   const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
   setLocalData(STORAGE_KEYS.REGIONS, currentRegions.filter(r => r.id !== regionId));
 
   const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
 
-  // 2. Sync Firestore
   try {
-    await deleteDoc(doc(db, 'regions', regionId));
-    await setDoc(doc(db, 'notifications', notifId), autoNotif);
+    deleteDoc(doc(db, 'regions', regionId)).catch(() => {});
+    setDoc(doc(db, 'notifications', notifId), sanitizeForFirestore(autoNotif) as Record<string, unknown>).catch(() => {});
   } catch (error) {
     console.warn('Firestore deleteRegion note:', error);
   }
@@ -473,7 +516,7 @@ export function subscribeToReports(callback: (reports: ReportItem[]) => void) {
 
   // 1. Emit local data immediately
   const emitCurrent = () => {
-    const local = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+    const local = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
     local.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(local);
   };
@@ -526,7 +569,7 @@ export function subscribeToNotifications(callback: (notifs: NotificationItem[]) 
   ensureLocalDataInitialized();
 
   const emitCurrent = () => {
-    const local = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+    const local = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
     local.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(local);
   };
@@ -577,7 +620,7 @@ export function subscribeToRegions(callback: (regions: RegionData[]) => void) {
   ensureLocalDataInitialized();
 
   const emitCurrent = () => {
-    const local = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    const local = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, inMemoryRegions);
     local.sort((a, b) => a.name.localeCompare(b.name));
     callback(local.length > 0 ? local : INITIAL_REGIONS);
   };
@@ -646,12 +689,12 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
   const totalSchoolsAdded = (sdAdded + smpAdded) || Number(reportData.schoolsVisited) || 0;
   const registrantsAdded = Number(reportData.registrantsAdded) || 0;
 
-  // 1. Simpan ke Local Storage Segera (Bebas Kuota, 100% Berhasil)
-  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+  // 1. Simpan ke Local Storage & Memory Segera (Bebas Kuota, 100% Berhasil Instan)
+  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
   setLocalData(STORAGE_KEYS.REPORTS, [newReport, ...currentReports]);
 
   // Update counters lokal untuk provinsi terkait
-  const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+  const currentRegions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, inMemoryRegions);
   const updatedRegions = currentRegions.map(reg => {
     if (reg.id === reportData.regionId) {
       return {
@@ -685,12 +728,15 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
     isRead: false
   };
 
-  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
 
-  // 2. Sinkronisasi Firestore di background (opsional jika online/tersedia)
+  // 2. Non-blocking sanitized Firestore background sync (fire-and-forget, never blocks UI)
   try {
-    await setDoc(doc(db, 'reports', newId), newReport);
+    const cleanReport = sanitizeForFirestore(newReport) as Record<string, unknown>;
+    setDoc(doc(db, 'reports', newId), cleanReport).catch((err) => {
+      console.warn('Background Firestore sync report notice:', err);
+    });
 
     if (registrantsAdded > 0 || totalSchoolsAdded > 0) {
       const regRef = doc(db, 'regions', reportData.regionId);
@@ -699,12 +745,17 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
       if (sdAdded > 0) updatePayload.currentSchoolsSdMi = increment(sdAdded);
       if (smpAdded > 0) updatePayload.currentSchoolsSmpMts = increment(smpAdded);
       if (totalSchoolsAdded > 0) updatePayload.currentSchools = increment(totalSchoolsAdded);
-      await updateDoc(regRef, updatePayload);
+      updateDoc(regRef, updatePayload).catch((err) => {
+        console.warn('Background Firestore sync counter notice:', err);
+      });
     }
 
-    await setDoc(doc(db, 'notifications', notifId), autoNotif);
-  } catch (error) {
-    console.warn('Firestore background report sync note (aman, tersimpan di lokal):', error);
+    const cleanNotif = sanitizeForFirestore(autoNotif) as Record<string, unknown>;
+    setDoc(doc(db, 'notifications', notifId), cleanNotif).catch((err) => {
+      console.warn('Background Firestore sync notif notice:', err);
+    });
+  } catch (syncErr) {
+    console.warn('Background sync setup note:', syncErr);
   }
 
   return newId;
@@ -721,7 +772,7 @@ export async function verifyReport(
   const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
   // 1. Update lokal
-  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
+  const currentReports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
   const updatedReports = currentReports.map(rep => {
     if (rep.id === reportId) {
       return {
@@ -761,19 +812,19 @@ export async function verifyReport(
     isRead: false
   };
 
-  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
 
   // 2. Sinkronisasi Firestore di background
   try {
-    await updateDoc(doc(db, 'reports', reportId), {
+    updateDoc(doc(db, 'reports', reportId), {
       status,
       verifiedBy: verifierName,
       verificationNotes: notes,
       verifiedAt: nowStr,
       updatedAt: nowStr
-    });
-    await setDoc(doc(db, 'notifications', notifId), autoNotif);
+    }).catch(() => {});
+    setDoc(doc(db, 'notifications', notifId), sanitizeForFirestore(autoNotif) as Record<string, unknown>).catch(() => {});
   } catch (error) {
     console.warn('Firestore verifyReport sync note:', error);
   }
@@ -781,12 +832,12 @@ export async function verifyReport(
 
 // Mark notifications as read
 export async function markNotificationAsRead(notifId: string) {
-  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
   const updated = currentNotifs.map(n => n.id === notifId ? { ...n, isRead: true } : n);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, updated);
 
   try {
-    await updateDoc(doc(db, 'notifications', notifId), { isRead: true });
+    updateDoc(doc(db, 'notifications', notifId), { isRead: true }).catch(() => {});
   } catch (error) {
     console.warn('Mark notif read error:', error);
   }
@@ -798,8 +849,8 @@ export async function markNotificationAsRead(notifId: string) {
 
 export function exportAllDataAsJson(): string {
   const regions = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
-  const reports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, []);
-  const notifications = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+  const reports = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
+  const notifications = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
 
   const exportObj = {
     app: 'SENSEI 2027',

@@ -207,15 +207,24 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setTotalValidatedRegistrants(offlineRegistrants + val);
   };
 
-  // Compress & convert file to lightweight Base64 image (max 800px, 0.65 quality for fast saving)
   const processImageFile = (file: File): Promise<string> => {
     return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        resolve('');
+      }, 2500);
+
       try {
         const reader = new FileReader();
         reader.onload = (e) => {
           try {
+            const dataUrl = (e.target?.result as string) || '';
+            if (!dataUrl) {
+              clearTimeout(timeoutId);
+              return resolve('');
+            }
             const img = new Image();
             img.onload = () => {
+              clearTimeout(timeoutId);
               try {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
@@ -237,21 +246,29 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   ctx.drawImage(img, 0, 0, width, height);
                   resolve(canvas.toDataURL('image/jpeg', 0.65));
                 } else {
-                  resolve((e.target?.result as string) || '');
+                  resolve(dataUrl);
                 }
               } catch {
-                resolve((e.target?.result as string) || '');
+                resolve(dataUrl);
               }
             };
-            img.onerror = () => resolve((e.target?.result as string) || '');
-            img.src = (e.target?.result as string) || '';
+            img.onerror = () => {
+              clearTimeout(timeoutId);
+              resolve('');
+            };
+            img.src = dataUrl;
           } catch {
+            clearTimeout(timeoutId);
             resolve('');
           }
         };
-        reader.onerror = () => resolve('');
+        reader.onerror = () => {
+          clearTimeout(timeoutId);
+          resolve('');
+        };
         reader.readAsDataURL(file);
       } catch {
+        clearTimeout(timeoutId);
         resolve('');
       }
     });
@@ -356,6 +373,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       }
     }
 
+    const safetyTimer = setTimeout(() => {
+      setIsSubmitting(false);
+    }, 4000);
+
     try {
       setIsSubmitting(true);
       await submitReport({
@@ -385,6 +406,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         documentCompletenessStatus: completenessStatus,
       });
 
+      clearTimeout(safetyTimer);
       playNotificationTone('success');
       confetti({
         particleCount: 55,
@@ -398,8 +420,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         setIsSubmitting(false);
         onClose();
         if (onSuccess) onSuccess();
-      }, 1200);
+      }, 1000);
     } catch (err: unknown) {
+      clearTimeout(safetyTimer);
       console.error('Submit report failed:', err);
       setSubmitError(err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan. Silakan coba lagi.');
       setIsSubmitting(false);
@@ -1076,7 +1099,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSubmit()}
-                  disabled={isSubmitting || isProcessingImages}
+                  disabled={isSubmitting}
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
