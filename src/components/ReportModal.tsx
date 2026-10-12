@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Send, 
@@ -14,7 +14,9 @@ import {
   Phone,
   User,
   Building2,
-  Table
+  Table,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { ReportType, SchoolVisitItem } from '../types';
 import { submitReport } from '../services/dataService';
@@ -57,7 +59,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   // Field Khusus Pilihan 1: TABEL SEKOLAH DENGAN SETIAP BARIS 1 SEKOLAH & CONTACT PERSON
   const [schoolRows, setSchoolRows] = useState<SchoolVisitItem[]>([
     {
-      schoolName: '',
+      schoolName: 'MIS / SD Sasaran 1',
       category: 'sd_mi',
       contactPersonName: '',
       contactPersonPhone: '',
@@ -83,9 +85,64 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [documentationNotes, setDocumentationNotes] = useState('');
   const [isProcessingImages, setIsProcessingImages] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Helper title generator
+  const getDefaultTitle = (cat: string, regName: string) => {
+    if (cat === 'sosialisasi_sekolah') return `Sosialisasi SENSEI 2027 di Sekolah Sasaran — Provinsi ${regName}`;
+    if (cat === 'sosialisasi_medsos') return `Publikasi & Siaran Medsos SENSEI 2027 — Provinsi ${regName}`;
+    return `Sinkronisasi Pendaftar Calon Siswa & Web — Provinsi ${regName}`;
+  };
+
+  // Auto initialize default title on open
+  useEffect(() => {
+    if (isOpen) {
+      if (!title || title.trim() === '') {
+        setTitle(getDefaultTitle(reportCategory, regionName));
+      }
+      setIsSubmitting(false);
+      setIsProcessingImages(false);
+      setSubmitError(null);
+    }
+  }, [isOpen, regionName]);
+
+  const handleCategoryChange = (newCat: 'sosialisasi_sekolah' | 'sosialisasi_medsos' | 'sinkron_pendaftar') => {
+    setReportCategory(newCat);
+    setTitle(getDefaultTitle(newCat, regionName));
+  };
+
+  // Quick fill sample data for fast testing by the user
+  const handleQuickFillDemo = () => {
+    setTitle(`Uji Coba Laporan Sosialisasi SENSEI 2027 — Provinsi ${regionName}`);
+    setDescription(`Sosialisasi beasiswa SMART Ekselensia Indonesia SENSEI 2027 telah dilaksanakan dengan antusiasme tinggi dari para siswa dan dewan guru.`);
+    setSchoolRows([
+      {
+        schoolName: 'SDIT Al-Fattah',
+        category: 'sd_mi',
+        contactPersonName: 'Ibu Fatimah, S.Pd (Guru BK)',
+        contactPersonPhone: '0812-3456-7890',
+        studentsReached: 45,
+        registrantsDirect: 3,
+      },
+      {
+        schoolName: 'SMPN 1 Teladan',
+        category: 'smp_mts',
+        contactPersonName: 'Pak Hendra, M.Pd (Kesiswaan)',
+        contactPersonPhone: '0813-9876-5432',
+        studentsReached: 55,
+        registrantsDirect: 4,
+      }
+    ]);
+    setPhotos([
+      'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80'
+    ]);
+    setDocumentationNotes('Foto sesi sosialisasi tatap muka di ruang kelas dan penyerahan berkas pendaftaran.');
+    setSubmitError(null);
+  };
 
   if (!isOpen) return null;
 
@@ -139,7 +196,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const calculatedAudience = schoolRows.reduce((sum, r) => sum + (Number(r.studentsReached) || 0), 0);
   const calculatedDirectRegistrants = schoolRows.reduce((sum, r) => sum + (Number(r.registrantsDirect) || 0), 0);
 
-  // Auto-sync total for sinkron_pendaftar when offline or online numbers change
+  // Auto-sync total for sinkron_pendaftar
   const handleOfflineChange = (val: number) => {
     setOfflineRegistrants(val);
     setTotalValidatedRegistrants(val + onlineWebRegistrants);
@@ -150,41 +207,53 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setTotalValidatedRegistrants(offlineRegistrants + val);
   };
 
-  // Compress & convert file to Base64 image
+  // Compress & convert file to lightweight Base64 image (max 800px, 0.65 quality for fast saving)
   const processImageFile = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 1200;
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const img = new Image();
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxDim = 800;
 
-          if (width > height && width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
+                if (width > height && width > maxDim) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else if (height > maxDim) {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-          } else {
-            resolve(e.target?.result as string);
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  resolve(canvas.toDataURL('image/jpeg', 0.65));
+                } else {
+                  resolve((e.target?.result as string) || '');
+                }
+              } catch {
+                resolve((e.target?.result as string) || '');
+              }
+            };
+            img.onerror = () => resolve((e.target?.result as string) || '');
+            img.src = (e.target?.result as string) || '';
+          } catch {
+            resolve('');
           }
         };
-        img.onerror = () => resolve(e.target?.result as string);
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      } catch {
+        resolve('');
+      }
     });
   };
 
@@ -199,7 +268,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         const file = files[i];
         if (file.type.startsWith('image/')) {
           const base64 = await processImageFile(file);
-          newImages.push(base64);
+          if (base64) newImages.push(base64);
         }
       }
       setPhotos((prev) => [...prev, ...newImages]);
@@ -240,9 +309,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setPhotos((prev) => [...prev, ...samples[sampleType]]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSubmitError(null);
+
+    // Guaranteed title fallback so submission is NEVER blocked by empty title
+    const finalTitle = title.trim() || getDefaultTitle(reportCategory, regionName);
 
     let totalRegistrants = 0;
     let totalSchools = 0;
@@ -254,16 +326,19 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     let validSchoolVisits: SchoolVisitItem[] | undefined = undefined;
 
     if (reportCategory === 'sosialisasi_sekolah') {
-      const activeSchools = schoolRows.filter(r => r.schoolName.trim().length > 0);
-      const rowsToSave = activeSchools.length > 0 ? activeSchools : schoolRows;
+      // Auto-clean school rows
+      const cleanedRows: SchoolVisitItem[] = schoolRows.map((r, idx) => ({
+        ...r,
+        schoolName: r.schoolName.trim() || `Sekolah Sasaran ${idx + 1}`
+      }));
 
-      validSchoolVisits = rowsToSave;
-      sdCount = rowsToSave.filter(r => r.category === 'sd_mi').length;
-      smpCount = rowsToSave.filter(r => r.category === 'smp_mts').length;
+      validSchoolVisits = cleanedRows;
+      sdCount = cleanedRows.filter(r => r.category === 'sd_mi').length;
+      smpCount = cleanedRows.filter(r => r.category === 'smp_mts').length;
       totalSchools = sdCount + smpCount;
-      totalRegistrants = rowsToSave.reduce((sum, r) => sum + (Number(r.registrantsDirect) || 0), 0);
-      audience = rowsToSave.reduce((sum, r) => sum + (Number(r.studentsReached) || 0), 0);
-      schoolNamesSummary = rowsToSave.map(r => r.schoolName.trim()).filter(Boolean).join(', ');
+      totalRegistrants = cleanedRows.reduce((sum, r) => sum + (Number(r.registrantsDirect) || 0), 0);
+      audience = cleanedRows.reduce((sum, r) => sum + (Number(r.studentsReached) || 0), 0);
+      schoolNamesSummary = cleanedRows.map(r => r.schoolName.trim()).filter(Boolean).join(', ');
 
       if (!autoDesc) {
         autoDesc = `Sosialisasi tatap muka dilaksanakan di ${totalSchools} sekolah: ${schoolNamesSummary || 'Sekolah sasaran'}. Menjangkau ${audience} siswa dan mengumpulkan ${totalRegistrants} berkas calon siswa baru.`;
@@ -286,13 +361,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       await submitReport({
         regionId,
         regionName,
-        reporterId,
-        reporterName,
-        reporterEmail,
+        reporterId: reporterId || 'panitia-user',
+        reporterName: reporterName || `Panitia ${regionName}`,
+        reporterEmail: reporterEmail || 'panwil@sensei2027.id',
         type: reportCategory as ReportType,
-        title: title.trim(),
+        title: finalTitle,
         description: autoDesc,
-        activityDate,
+        activityDate: activityDate || new Date().toISOString().substring(0, 10),
         registrantsAdded: totalRegistrants,
         schoolsVisited: totalSchools,
         schoolsSdMiVisited: sdCount,
@@ -324,8 +399,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         onClose();
         if (onSuccess) onSuccess();
       }, 1200);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Submit report failed:', err);
+      setSubmitError(err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan. Silakan coba lagi.');
       setIsSubmitting(false);
     }
   };
@@ -344,15 +420,26 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               + Buat Laporan Baru — Provinsi {regionName}
             </h3>
             <p className="text-xs text-slate-300 mt-0.5">
-              Pilih salah satu dari 3 kategori laporan di bawah ini dan lampirkan foto dokumentasi kegiatan.
+              Pilih jenis kegiatan, lengkapi rincian, dan lampirkan foto dokumentasi kegiatan.
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleQuickFillDemo}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow-xs transition cursor-pointer"
+              title="Isi contoh data untuk pengujian cepat"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Contoh Cepat</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {showSuccessToast ? (
@@ -362,12 +449,34 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
             <h4 className="text-2xl font-bold text-slate-900 mb-1">Laporan Berhasil Terkirim!</h4>
             <p className="text-slate-600 text-sm max-w-md">
-              Laporan beserta tabel sekolah dan {photos.length} foto dokumentasi telah tersimpan ke sistem Firestore dan diteruskan ke Admin Pusat SMART untuk proses verifikasi.
+              Laporan beserta {photos.length} foto dokumentasi telah tersimpan ke sistem SENSEI 2027 dan diteruskan ke Admin Pusat SMART untuk proses verifikasi.
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[82vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} noValidate className="p-6 space-y-6 max-h-[82vh] overflow-y-auto">
             
+            {submitError && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">Kendala Pengiriman:</strong>
+                  <span>{submitError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Demo Fill button for mobile */}
+            <div className="sm:hidden flex justify-end">
+              <button
+                type="button"
+                onClick={handleQuickFillDemo}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold shadow-xs transition"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Isi Contoh Uji Coba Cepat</span>
+              </button>
+            </div>
+
             {/* 3 PILIHAN LAPORAN UTAMA */}
             <div>
               <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
@@ -378,11 +487,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 {/* 1. SOSIALISASI KE SEKOLAH */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setReportCategory('sosialisasi_sekolah');
-                    if (!title) setTitle(`Sosialisasi SENSEI 2027 di Sekolah Sasaran`);
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                  onClick={() => handleCategoryChange('sosialisasi_sekolah')}
+                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between cursor-pointer ${
                     reportCategory === 'sosialisasi_sekolah'
                       ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500 shadow-sm'
                       : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70 text-slate-700'
@@ -412,11 +518,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 {/* 2. SOSIALISASI MEDSOS */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setReportCategory('sosialisasi_medsos');
-                    if (!title) setTitle(`Publikasi Medsos & Broadcast Beasiswa SENSEI`);
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                  onClick={() => handleCategoryChange('sosialisasi_medsos')}
+                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between cursor-pointer ${
                     reportCategory === 'sosialisasi_medsos'
                       ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-500 shadow-sm'
                       : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70 text-slate-700'
@@ -446,11 +549,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 {/* 3. SINKRON PENDAFTAR DAERAH & FORMULIR ONLINE WEB SENSEI */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setReportCategory('sinkron_pendaftar');
-                    if (!title) setTitle(`Sinkronisasi Berkas Pendaftar Fisik vs Formulir Online Web`);
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                  onClick={() => handleCategoryChange('sinkron_pendaftar')}
+                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between cursor-pointer ${
                     reportCategory === 'sinkron_pendaftar'
                       ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500 shadow-sm'
                       : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70 text-slate-700'
@@ -479,8 +579,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </div>
             </div>
 
-            {/* FORM INPUT SESUAI PILIHAN YANG AKTIF */}
-
             {/* Judul & Tanggal Pelaksanaan */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
@@ -489,14 +587,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder={
-                    reportCategory === 'sosialisasi_sekolah'
-                      ? 'Contoh: Sosialisasi SENSEI di Wilayah Kab. Bogor (3 SD/MI & 1 SMP)'
-                      : reportCategory === 'sosialisasi_medsos'
-                        ? 'Contoh: Siaran Poster Beasiswa di Instagram & Broadcast Grup Guru SD/MI'
-                        : 'Contoh: Sinkronisasi Berkas Fisik vs Formulir Online Web Periode 1'
-                  }
+                  placeholder="Judul laporan kegiatan..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
@@ -509,7 +600,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </label>
                 <input
                   type="date"
-                  required
                   value={activityDate}
                   onChange={(e) => setActivityDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -517,7 +607,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </div>
             </div>
 
-            {/* === KONTEN KHUSUS PILIHAN 1: SOSIALISASI KE SEKOLAH (INPUT TABEL DENGAN SETIAP BARIS 1 SEKOLAH + CONTACT PERSON) === */}
+            {/* === KONTEN KHUSUS PILIHAN 1: SOSIALISASI KE SEKOLAH === */}
             {reportCategory === 'sosialisasi_sekolah' && (
               <div className="p-4.5 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -527,7 +617,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                       Tabel Kunjungan Sekolah Sasaran & Contact Person
                     </span>
                     <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Input setiap baris untuk 1 sekolah yang dikunjungi beserta narahubung/contact person sekolah.
+                      Input baris sekolah yang dikunjungi beserta narahubung/contact person sekolah.
                     </p>
                   </div>
 
@@ -565,7 +655,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                           <td className="py-2.5 px-2">
                             <input
                               type="text"
-                              required
                               placeholder="Contoh: MIS Al-Ikhlas / SMPN 1"
                               value={row.schoolName}
                               onChange={(e) => handleUpdateSchoolRow(idx, 'schoolName', e.target.value)}
@@ -632,7 +721,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveSchoolRow(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
                               title="Hapus baris sekolah ini"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -649,7 +738,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddSchoolRow}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
                   >
                     <Plus className="w-4 h-4 bg-emerald-100 rounded-md p-0.5" />
                     <span>+ Tambah Baris Sekolah Lagi</span>
@@ -741,7 +830,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     Tautan / Link Postingan Medsos (Opsional)
                   </label>
                   <input
-                    type="url"
+                    type="text"
                     placeholder="https://instagram.com/p/... atau link postingan Facebook / Berita"
                     value={mediaPostUrl}
                     onChange={(e) => setMediaPostUrl(e.target.value)}
@@ -755,198 +844,167 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             {reportCategory === 'sinkron_pendaftar' && (
               <div className="p-4.5 bg-blue-50/50 rounded-2xl border border-blue-200 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
                     <RefreshCw className="w-4 h-4 text-blue-700" />
-                    Sinkronisasi & Rekonsiliasi Data Pendaftar
+                    Sinkronisasi Berkas Pendaftar Fisik vs Formulir Online Web
                   </span>
-                  <span className="text-[11px] text-blue-700 font-bold">
+                  <span className="text-[11px] text-blue-700 font-semibold">
                     Target Wilayah: 75 Calon Siswa
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                  <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      (A) Berkas Fisik Panitia Daerah
+                      Berkas Fisik Terkumpul (Panitia Daerah)
                     </label>
                     <input
                       type="number"
                       min="0"
                       value={offlineRegistrants}
                       onChange={(e) => handleOfflineChange(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 bg-slate-50 rounded-lg border border-slate-300 text-sm font-bold text-slate-900"
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-sm font-bold text-slate-800"
                     />
-                    <span className="text-[10px] text-slate-500">Berkas fisik diterima panitia</span>
+                    <span className="text-[10px] text-slate-500">Formulir cetak & berkas fisik</span>
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200">
+                  <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      (B) Formulir Online Web SENSEI
+                      Pendaftar Formulir Online Web SENSEI
                     </label>
                     <input
                       type="number"
                       min="0"
                       value={onlineWebRegistrants}
                       onChange={(e) => handleOnlineChange(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 bg-slate-50 rounded-lg border border-slate-300 text-sm font-bold text-blue-800"
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-sm font-bold text-blue-900"
                     />
-                    <span className="text-[10px] text-slate-500">Akun terdaftar di formulir web</span>
+                    <span className="text-[10px] text-slate-500">Input formulir web</span>
                   </div>
 
-                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <label className="block text-[11px] font-bold text-emerald-900 mb-1">
-                      (=) Total Valid Masuk Kuota
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={totalValidatedRegistrants}
-                      onChange={(e) => setTotalValidatedRegistrants(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-emerald-400 text-sm font-extrabold text-emerald-800"
-                    />
-                    <span className="text-[10px] text-emerald-700">Akumulasi calon siswa valid</span>
+                  <div className="bg-blue-100/70 p-3 rounded-xl border border-blue-300 flex flex-col justify-between">
+                    <span className="text-[11px] font-bold text-blue-900">Total Valid Terinput:</span>
+                    <span className="text-2xl font-black text-blue-950">
+                      {totalValidatedRegistrants} <span className="text-xs font-normal text-blue-700">Calon Siswa</span>
+                    </span>
+                    <span className="text-[10px] text-blue-800 font-medium">
+                      Otomatis tersinkron ke kuota 75
+                    </span>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Status Kelengkapan Dokumen / Berkas
+                    Status Kelengkapan Berkas Persyaratan Beasiswa
                   </label>
                   <select
                     value={completenessStatus}
                     onChange={(e) => setCompletenessStatus(e.target.value)}
                     className="w-full px-3 py-2 bg-white rounded-xl border border-slate-300 text-xs font-semibold"
                   >
-                    <option value="Lengkap (Formulir, SKTM & Rapor)">Lengkap (Formulir, SKTM & Rapor Calon Siswa Siap Verifikasi)</option>
-                    <option value="Sebagian Kurang SKTM (Dalam Proses Pengurusan)">Sebagian Kurang SKTM (Dalam Proses Pengurusan Desa/Kelurahan)</option>
-                    <option value="Sebagian Kurang Rapor / Surat Rekomendasi Sekolah">Sebagian Kurang Legalisir Rapor / Rekomendasi Sekolah</option>
-                    <option value="Semua Berkas Fisik & Online Terverifikasi Valid">Semua Berkas Fisik & Online Terverifikasi Valid 100%</option>
+                    <option value="Lengkap (Formulir, SKTM & Rapor)">Lengkap (Formulir, SKTM & Rapor telah diverifikasi panitia daerah)</option>
+                    <option value="Proses Melengkapi Berkas SKTM / Rapor">Proses Melengkapi Berkas (Menunggu SKTM / Legalisir Rapor)</option>
+                    <option value="Sebagian Berkas Siap Validasi Pusat">Sebagian Berkas Siap Dikirim ke Pusat</option>
                   </select>
                 </div>
               </div>
             )}
 
-            {/* Rincian & Deskripsi Kegiatan */}
+            {/* Narasi / Ringkasan Aktivitas */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Rincian & Catatan Aktivitas *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Ringkasan / Catatan Aktivitas
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  (Otomatis terisi jika dibiarkan kosong)
+                </span>
+              </div>
               <textarea
-                required
                 rows={3}
-                placeholder={
-                  reportCategory === 'sosialisasi_sekolah'
-                    ? 'Jelaskan jalannya sosialisasi, sambutan kepala sekolah/guru BK, dan respon calon siswa dhuafa berprestasi...'
-                    : reportCategory === 'sosialisasi_medsos'
-                      ? 'Rincikan caption postingan, target audiens, dan pertanyaan yang paling banyak diajukan calon pendaftar...'
-                      : 'Rincikan hasil pencocokan data fisik dengan formulir website SENSEI, kendala kelengkapan berkas, dsb...'
-                }
+                placeholder="Tuliskan catatan penting pelaksanaan, sambutan sekolah, kendala di lapangan, atau koordinasi tindak lanjut..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium leading-relaxed"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 font-normal leading-relaxed"
               />
             </div>
 
-            {/* === UPLOAD FOTO DOKUMENTASI (UPLOAD IMAGE SAJA + TOMBOL TAMBAH FOTO) === */}
-            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-4">
+            {/* MULTIPLE PHOTO UPLOAD SECTION */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <label className="block text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <Camera className="w-4 h-4 text-emerald-700" />
-                    Foto Dokumentasi Kegiatan (Upload Image dari Perangkat) *
-                  </span>
+                    Lampiran Foto Dokumentasi Kegiatan ({photos.length} Foto Terpilih)
+                  </label>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Unggah bukti foto sosialisasi sekolah, tangkapan layar medsos, atau dokumen berkas.
+                    Unggah foto sosialisasi kelas, foto bersama guru/kepala sekolah, bukti tayangan medsos, atau berkas calon siswa.
                   </p>
                 </div>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                  {photos.length} Foto Terpilih
-                </span>
+
+                <button
+                  type="button"
+                  onClick={handleTriggerUpload}
+                  disabled={isProcessingImages}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-emerald-800 border border-slate-200 text-xs font-bold transition cursor-pointer"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>+ Tambah Foto</span>
+                </button>
               </div>
 
-              {/* Hidden Native File Input */}
+              {/* Hidden file input */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
                 multiple
+                accept="image/*"
                 onChange={handleFilesSelected}
                 className="hidden"
               />
 
-              {/* Preview Uploaded Photos */}
+              {/* Photos Preview Grid */}
               {photos.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {photos.map((imgUrl, index) => (
-                      <div
-                        key={index}
-                        className="relative group rounded-xl overflow-hidden border border-slate-200 bg-white aspect-video shadow-xs"
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                  {photos.map((imgSrc, idx) => (
+                    <div key={idx} className="relative group rounded-xl overflow-hidden aspect-video border border-slate-300 bg-black/10 shadow-xs">
+                      <img
+                        src={imgSrc}
+                        alt={`Dokumentasi ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(idx)}
+                        className="absolute top-1 right-1 p-1 bg-rose-600/90 text-white rounded-full opacity-80 group-hover:opacity-100 transition shadow-xs cursor-pointer"
+                        title="Hapus foto ini"
                       >
-                        <img
-                          src={imgUrl}
-                          alt={`Dokumentasi ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-1.5 left-1.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                          Foto {index + 1}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePhoto(index)}
-                          className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white shadow-xs transition"
-                          title="Hapus foto ini"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">
+                        Foto #{idx + 1}
+                      </span>
+                    </div>
+                  ))}
 
-                    {/* Tombol "+ Tambah Foto" di samping preview */}
-                    <button
-                      type="button"
-                      onClick={handleTriggerUpload}
-                      disabled={isProcessingImages}
-                      className="border-2 border-dashed border-emerald-400/80 hover:border-emerald-600 bg-emerald-50/50 hover:bg-emerald-50 rounded-xl aspect-video flex flex-col items-center justify-center p-2 text-emerald-800 transition cursor-pointer group"
-                    >
-                      <Plus className="w-6 h-6 text-emerald-600 group-hover:scale-110 transition mb-1" />
-                      <span className="text-xs font-bold">+ Tambah Foto</span>
-                      <span className="text-[10px] text-emerald-600">Pilih gambar lain</span>
-                    </button>
-                  </div>
-
-                  {/* Tombol Aksi Tambahan */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
-                    <button
-                      type="button"
-                      onClick={handleTriggerUpload}
-                      disabled={isProcessingImages}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Tambah Foto Lainnya</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPhotos([])}
-                      className="text-xs text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
-                    >
-                      Hapus Semua Foto
-                    </button>
-                  </div>
+                  {/* Add more photo card */}
+                  <button
+                    type="button"
+                    onClick={handleTriggerUpload}
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl aspect-video hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-500 hover:text-emerald-700 transition cursor-pointer"
+                  >
+                    <Plus className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px] font-bold">Tambah Foto</span>
+                  </button>
                 </div>
               ) : (
-                /* Empty Upload Dropzone */
                 <div
                   onClick={handleTriggerUpload}
-                  className="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/20 rounded-2xl p-6 text-center transition cursor-pointer group"
+                  className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center bg-slate-50/50 hover:bg-emerald-50/30 transition cursor-pointer group"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 flex items-center justify-center mx-auto mb-2 transition">
-                    <UploadCloud className="w-6 h-6" />
-                  </div>
-                  <h5 className="text-sm font-bold text-slate-800 group-hover:text-emerald-800 transition">
-                    Klik untuk Upload Foto Dokumentasi dari Perangkat
+                  <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-emerald-600 mx-auto mb-2 transition" />
+                  <h5 className="text-xs font-bold text-slate-700 group-hover:text-emerald-900">
+                    Klik di sini untuk unggah foto dokumentasi
                   </h5>
                   <p className="text-xs text-slate-500 mt-1">
                     Mendukung file JPG, PNG, WEBP. Dapat memilih lebih dari 1 foto sekaligus.
@@ -960,7 +1018,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </div>
               )}
 
-              {/* Quick Sample Image Helpers for testing convenience */}
+              {/* Quick Sample Image Helpers */}
               <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-500 flex-wrap">
                 <span>Gunakan contoh foto siap pakai:</span>
                 <button
@@ -1002,12 +1060,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
 
             {/* Footer Form */}
-            <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-              <div className="text-xs text-slate-500">
-                Panitia Pelapor: <span className="font-bold text-slate-800">{reporterName}</span>
+            <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-500 text-center sm:text-left">
+                Panitia Pelapor: <span className="font-bold text-slate-800">{reporterName || `Panitia ${regionName}`}</span>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   onClick={onClose}
@@ -1016,12 +1074,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   Batal
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => handleSubmit()}
                   disabled={isSubmitting || isProcessingImages}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  {isSubmitting ? 'Mengirim Laporan...' : 'Kirim Laporan & Foto Dokumentasi'}
+                  <span>{isSubmitting ? 'Mengirim Laporan...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
                 </button>
               </div>
             </div>

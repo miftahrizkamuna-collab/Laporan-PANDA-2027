@@ -307,6 +307,7 @@ function MainLayout() {
       <ReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
+        onSuccess={() => setIsReportModalOpen(false)}
         reporterName={currentRegion.coordinatorName || profile.displayName || `Panitia ${currentRegion.name}`}
         reporterEmail={profile.email}
         reporterId={profile.uid}
