@@ -285,13 +285,24 @@ function getLocalData<T>(key: string, defaultValue: T): T {
       return defaultValue;
     }
     const parsed = JSON.parse(raw) as T;
-    // Keep in-memory cache updated
+    // Keep in-memory cache updated without overwriting newer in-memory items
     if (key === STORAGE_KEYS.REGIONS && Array.isArray(parsed)) inMemoryRegions = parsed as unknown as RegionData[];
-    if (key === STORAGE_KEYS.REPORTS && Array.isArray(parsed)) inMemoryReports = parsed as unknown as ReportItem[];
-    if (key === STORAGE_KEYS.NOTIFICATIONS && Array.isArray(parsed)) inMemoryNotifs = parsed as unknown as NotificationItem[];
+    if (key === STORAGE_KEYS.REPORTS && Array.isArray(parsed)) {
+      if (inMemoryReports.length > parsed.length) {
+        return inMemoryReports as unknown as T;
+      }
+      inMemoryReports = parsed as unknown as ReportItem[];
+    }
+    if (key === STORAGE_KEYS.NOTIFICATIONS && Array.isArray(parsed)) {
+      if (inMemoryNotifs.length > parsed.length) {
+        return inMemoryNotifs as unknown as T;
+      }
+      inMemoryNotifs = parsed as unknown as NotificationItem[];
+    }
     return parsed;
   } catch (e) {
     console.warn(`Error reading ${key} from localStorage:`, e);
+    if (key === STORAGE_KEYS.REPORTS && inMemoryReports.length > 0) return inMemoryReports as unknown as T;
     return defaultValue;
   }
 }
@@ -306,18 +317,21 @@ function setLocalData<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    console.warn(`LocalStorage quota notice for ${key}, falling back to memory/compact:`, e);
-    // If reports exceed localStorage 5MB limit, store without base64 photos in localStorage
+    console.warn(`LocalStorage quota notice for ${key}, falling back to compact/safe storage:`, e);
+    // If reports exceed localStorage 5MB limit, strip photos to preserve report metadata 100%
     if (key === STORAGE_KEYS.REPORTS && Array.isArray(value)) {
       try {
-        const lightweight = (value as ReportItem[]).map((r, idx) => ({
+        const lightweight = (value as ReportItem[]).map((r) => ({
           ...r,
-          // keep photos for first 2 recent reports only to save space
-          documentationPhotos: idx < 2 ? r.documentationPhotos : [],
+          // Strip base64 data URLs to guarantee report text, dates, numbers and status are saved
+          documentationPhotos: (r.documentationPhotos || []).filter(p => !p.startsWith('data:image')),
+          documentationImageUrl: (r.documentationImageUrl && r.documentationImageUrl.startsWith('data:image')) 
+            ? undefined 
+            : r.documentationImageUrl,
         }));
         localStorage.setItem(key, JSON.stringify(lightweight));
       } catch {
-        // Fallback silently to memory
+        // If still full, in-memory cache remains active
       }
     }
   }
@@ -517,8 +531,9 @@ export function subscribeToReports(callback: (reports: ReportItem[]) => void) {
   // 1. Emit local data immediately
   const emitCurrent = () => {
     const local = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
-    local.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    callback(local);
+    const source = (inMemoryReports.length >= local.length) ? inMemoryReports : local;
+    const sorted = [...source].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    callback(sorted);
   };
   emitCurrent();
 

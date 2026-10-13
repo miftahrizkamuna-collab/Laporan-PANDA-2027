@@ -211,7 +211,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         resolve('');
-      }, 2500);
+      }, 6000);
 
       try {
         const reader = new FileReader();
@@ -229,7 +229,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const maxDim = 800;
+                const maxDim = 640;
 
                 if (width > height && width > maxDim) {
                   height = Math.round((height * maxDim) / width);
@@ -244,7 +244,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                   ctx.drawImage(img, 0, 0, width, height);
-                  resolve(canvas.toDataURL('image/jpeg', 0.65));
+                  resolve(canvas.toDataURL('image/jpeg', 0.5));
                 } else {
                   resolve(dataUrl);
                 }
@@ -1092,28 +1092,44 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
 
             {/* Footer Form */}
-            <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-xs text-slate-500 text-center sm:text-left">
-                Panitia Pelapor: <span className="font-bold text-slate-800">{reporterName || `Panitia ${regionName}`}</span>
-              </div>
+            <div className="space-y-3 pt-3 border-t border-slate-200">
+              {submitError && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-semibold animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{submitError}</span>
+                </div>
+              )}
 
-              <div className="flex gap-2 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSubmit()}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Mengirim Laporan...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
-                </button>
+              {isProcessingImages && (
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-blue-800 text-xs font-medium animate-in fade-in">
+                  <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+                  <span>Sedang memproses & mengompresi foto dokumentasi...</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-slate-500 text-center sm:text-left">
+                  Panitia Pelapor: <span className="font-bold text-slate-800">{reporterName || `Panitia ${regionName}`}</span>
+                </div>
+
+                <div className="flex gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit()}
+                    disabled={isSubmitting || isProcessingImages}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{isSubmitting ? 'Mengirim Laporan...' : isProcessingImages ? 'Memproses Foto...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
