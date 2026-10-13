@@ -326,7 +326,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setPhotos((prev) => [...prev, ...samples[sampleType]]);
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) {
       try {
         e.preventDefault();
@@ -1149,11 +1149,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     Batal
                   </button>
                   <button
-                    type="submit"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleSubmit(e);
-                    }}
+                    type="button"
+                    onClick={handleSubmit}
                     disabled={isSubmitting}
                     className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >

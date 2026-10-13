@@ -3,10 +3,23 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Default config fallback ensures build never fails on remote host if JSON is modified or incomplete
+const defaultFirebaseConfig = {
+  projectId: "yodeling-drummer-x8chg",
+  appId: "1:468162884192:web:af274cdd4d48072e6cc905",
+  apiKey: "AIzaSyCq-B2AbviW5iAOmP3wN2OYJTxeg_Cuhr8",
+  authDomain: "yodeling-drummer-x8chg.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-796d3b79-0134-4bac-8732-9467068cbcb3",
+  storageBucket: "yodeling-drummer-x8chg.firebasestorage.app",
+  messagingSenderId: "468162884192",
+};
+
+const resolvedConfig = { ...defaultFirebaseConfig, ...(firebaseConfig || {}) };
+
+const app = getApps().length === 0 ? initializeApp(resolvedConfig) : getApps()[0];
 
 // CRITICAL: The app will break without specifying the database ID as documented in the Firebase Integration skill
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, resolvedConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
 export enum OperationType {

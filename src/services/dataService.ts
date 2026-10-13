@@ -559,9 +559,13 @@ export function subscribeToReports(callback: (reports: ReportItem[]) => void) {
           items.push({ id: docSnap.id, ...docSnap.data() } as ReportItem);
         });
         if (items.length > 0) {
-          items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setLocalData(STORAGE_KEYS.REPORTS, items);
-          callback(items);
+          const local = getLocalData<ReportItem[]>(STORAGE_KEYS.REPORTS, inMemoryReports);
+          const remoteIds = new Set(items.map(i => i.id));
+          const localOnly = local.filter(l => !remoteIds.has(l.id));
+          const merged = [...items, ...localOnly];
+          merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setLocalData(STORAGE_KEYS.REPORTS, merged);
+          callback(merged);
         }
       },
       (error) => {
@@ -661,9 +665,12 @@ export function subscribeToRegions(callback: (regions: RegionData[]) => void) {
           items.push({ id: docSnap.id, ...docSnap.data() } as RegionData);
         });
         if (items.length > 0) {
-          items.sort((a, b) => a.name.localeCompare(b.name));
-          setLocalData(STORAGE_KEYS.REGIONS, items);
-          callback(items);
+          const remoteIds = new Set(items.map(r => r.id));
+          const missingInitial = INITIAL_REGIONS.filter(r => !remoteIds.has(r.id));
+          const merged = [...items, ...missingInitial];
+          merged.sort((a, b) => a.name.localeCompare(b.name));
+          setLocalData(STORAGE_KEYS.REGIONS, merged);
+          callback(merged);
         }
       },
       (error) => {

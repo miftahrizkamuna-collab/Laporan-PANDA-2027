@@ -283,10 +283,13 @@ function MainLayout() {
               © 2027 <strong>SENSEI</strong> • Sistem Penerimaan Nasional Siswa Baru SMART Ekselensia Indonesia. Dompet Dhuafa.
             </span>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             <span className="flex items-center gap-1 text-emerald-700 font-semibold">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Tersinkronisasi Real-time dengan Firebase Firestore
+              Sistem Aktif (Sinkron Otomatis & Bebas Kuota)
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
+              v1.2.1 Live
             </span>
           </div>
         </div>
