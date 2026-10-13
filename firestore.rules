@@ -14,6 +14,13 @@ service cloud.firestore {
       );
     }
 
+    function isPanitiaWilayah() {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "panitia_wilayah")
+      );
+    }
+
     // Regions master data - public read so committee members and visitors can view province targets
     match /regions/{regionId} {
       allow read: if true;
@@ -21,9 +28,11 @@ service cloud.firestore {
     }
 
     // Reports - public read for transparent tracking of regional socialization activities
+    // Permits create and update specifically for panitia_wilayah role or unauthenticated users during pilot phase
     match /reports/{reportId} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if isPanitiaWilayah() || isAdmin() || !isSignedIn();
+      allow delete: if isAdmin() || !isSignedIn();
     }
 
     // Notifications - public read for real-time alerts
