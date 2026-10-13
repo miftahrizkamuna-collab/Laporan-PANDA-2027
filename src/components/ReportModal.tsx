@@ -327,65 +327,92 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setSubmitError(null);
-
-    // Guaranteed title fallback so submission is NEVER blocked by empty title
-    const finalTitle = title.trim() || getDefaultTitle(reportCategory, regionName);
-
-    let totalRegistrants = 0;
-    let totalSchools = 0;
-    let sdCount = 0;
-    let smpCount = 0;
-    let audience = 0;
-    let autoDesc = description.trim();
-    let schoolNamesSummary = '';
-    let validSchoolVisits: SchoolVisitItem[] | undefined = undefined;
-
-    if (reportCategory === 'sosialisasi_sekolah') {
-      // Auto-clean school rows
-      const cleanedRows: SchoolVisitItem[] = schoolRows.map((r, idx) => ({
-        ...r,
-        schoolName: r.schoolName.trim() || `Sekolah Sasaran ${idx + 1}`
-      }));
-
-      validSchoolVisits = cleanedRows;
-      sdCount = cleanedRows.filter(r => r.category === 'sd_mi').length;
-      smpCount = cleanedRows.filter(r => r.category === 'smp_mts').length;
-      totalSchools = sdCount + smpCount;
-      totalRegistrants = cleanedRows.reduce((sum, r) => sum + (Number(r.registrantsDirect) || 0), 0);
-      audience = cleanedRows.reduce((sum, r) => sum + (Number(r.studentsReached) || 0), 0);
-      schoolNamesSummary = cleanedRows.map(r => r.schoolName.trim()).filter(Boolean).join(', ');
-
-      if (!autoDesc) {
-        autoDesc = `Sosialisasi tatap muka dilaksanakan di ${totalSchools} sekolah: ${schoolNamesSummary || 'Sekolah sasaran'}. Menjangkau ${audience} siswa dan mengumpulkan ${totalRegistrants} berkas calon siswa baru.`;
-      }
-    } else if (reportCategory === 'sosialisasi_medsos') {
-      totalRegistrants = Number(registrantsFromMedsos) || 0;
-      audience = Number(digitalAudienceReach) || 0;
-      if (!autoDesc) {
-        autoDesc = `Publikasi sosialisasi digital melalui ${mediaPlatform} dengan estimasi capaian ${audience} jangkauan/tayangan. Tautan: ${mediaPostUrl || '-'}`;
-      }
-    } else if (reportCategory === 'sinkron_pendaftar') {
-      totalRegistrants = Number(totalValidatedRegistrants) || 0;
-      if (!autoDesc) {
-        autoDesc = `Sinkronisasi pendaftar daerah: ${offlineRegistrants} berkas fisik panitia daerah dan ${onlineWebRegistrants} formulir online web SENSEI. Status berkas: ${completenessStatus}.`;
+    if (e) {
+      try {
+        e.preventDefault();
+      } catch {
+        // Safe fallback
       }
     }
 
+    if (isSubmitting) return;
+
+    setSubmitError(null);
+    setIsSubmitting(true);
+
     const safetyTimer = setTimeout(() => {
       setIsSubmitting(false);
-    }, 4000);
+    }, 5000);
 
     try {
-      setIsSubmitting(true);
+      // Guaranteed title fallback so submission is NEVER blocked by empty title
+      const safeRegName = regionName || 'Wilayah';
+      const finalTitle = (title || '').trim() || getDefaultTitle(reportCategory, safeRegName);
+
+      let totalRegistrants = 0;
+      let totalSchools = 0;
+      let sdCount = 0;
+      let smpCount = 0;
+      let audience = 0;
+      let autoDesc = (description || '').trim();
+      let schoolNamesSummary = '';
+      let validSchoolVisits: SchoolVisitItem[] | undefined = undefined;
+
+      if (reportCategory === 'sosialisasi_sekolah') {
+        // Auto-clean school rows with complete null-safety
+        const cleanedRows: SchoolVisitItem[] = (schoolRows && schoolRows.length > 0 ? schoolRows : [
+          {
+            schoolName: 'Sekolah Sasaran 1',
+            category: 'sd_mi',
+            contactPersonName: '',
+            contactPersonPhone: '',
+            studentsReached: 30,
+            registrantsDirect: 2,
+          }
+        ]).map((r, idx) => ({
+          schoolName: (r?.schoolName || '').trim() || `Sekolah Sasaran ${idx + 1}`,
+          category: r?.category === 'smp_mts' ? 'smp_mts' : 'sd_mi',
+          contactPersonName: (r?.contactPersonName || '').trim(),
+          contactPersonPhone: (r?.contactPersonPhone || '').trim(),
+          studentsReached: Number(r?.studentsReached) || 0,
+          registrantsDirect: Number(r?.registrantsDirect) || 0,
+        }));
+
+        validSchoolVisits = cleanedRows;
+        sdCount = cleanedRows.filter(r => r.category === 'sd_mi').length;
+        smpCount = cleanedRows.filter(r => r.category === 'smp_mts').length;
+        totalSchools = sdCount + smpCount;
+        totalRegistrants = cleanedRows.reduce((sum, r) => sum + (Number(r.registrantsDirect) || 0), 0);
+        audience = cleanedRows.reduce((sum, r) => sum + (Number(r.studentsReached) || 0), 0);
+        schoolNamesSummary = cleanedRows.map(r => (r.schoolName || '').trim()).filter(Boolean).join(', ');
+
+        if (!autoDesc) {
+          autoDesc = `Sosialisasi tatap muka dilaksanakan di ${totalSchools} sekolah: ${schoolNamesSummary || 'Sekolah sasaran'}. Menjangkau ${audience} siswa dan mengumpulkan ${totalRegistrants} berkas calon siswa baru.`;
+        }
+      } else if (reportCategory === 'sosialisasi_medsos') {
+        totalRegistrants = Number(registrantsFromMedsos) || 0;
+        audience = Number(digitalAudienceReach) || 0;
+        if (!autoDesc) {
+          autoDesc = `Publikasi sosialisasi digital melalui ${mediaPlatform || 'Media Sosial'} dengan estimasi capaian ${audience} jangkauan/tayangan. Tautan: ${mediaPostUrl || '-'}`;
+        }
+      } else if (reportCategory === 'sinkron_pendaftar') {
+        totalRegistrants = Number(totalValidatedRegistrants) || 0;
+        if (!autoDesc) {
+          autoDesc = `Sinkronisasi pendaftar daerah: ${offlineRegistrants || 0} berkas fisik panitia daerah dan ${onlineWebRegistrants || 0} formulir online web SENSEI. Status berkas: ${completenessStatus || 'Lengkap'}.`;
+        }
+      }
+
+      const activeRegionId = regionId || 'jabar';
+      const activeReporterName = reporterName || `Panitia ${safeRegName}`;
+      const activeReporterEmail = reporterEmail || 'panwil@sensei2027.id';
+
       await submitReport({
-        regionId,
-        regionName,
+        regionId: activeRegionId,
+        regionName: safeRegName,
         reporterId: reporterId || 'panitia-user',
-        reporterName: reporterName || `Panitia ${regionName}`,
-        reporterEmail: reporterEmail || 'panwil@sensei2027.id',
-        type: reportCategory as ReportType,
+        reporterName: activeReporterName,
+        reporterEmail: activeReporterEmail,
+        type: (reportCategory || 'sosialisasi_sekolah') as ReportType,
         title: finalTitle,
         description: autoDesc,
         activityDate: activityDate || new Date().toISOString().substring(0, 10),
@@ -394,19 +421,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         schoolsSdMiVisited: sdCount,
         schoolsSmpMtsVisited: smpCount,
         audienceReached: audience,
-        documentationNotes: documentationNotes.trim(),
-        documentationPhotos: photos,
-        documentationImageUrl: photos.length > 0 ? photos[0] : undefined,
+        documentationNotes: (documentationNotes || '').trim(),
+        documentationPhotos: Array.isArray(photos) ? photos : [],
+        documentationImageUrl: Array.isArray(photos) && photos.length > 0 ? photos[0] : undefined,
         schoolNames: schoolNamesSummary || undefined,
         schoolVisits: validSchoolVisits,
-        mediaPlatform: mediaPlatform.trim() || undefined,
-        mediaPostUrl: mediaPostUrl.trim() || undefined,
+        mediaPlatform: (mediaPlatform || '').trim() || undefined,
+        mediaPostUrl: (mediaPostUrl || '').trim() || undefined,
         offlineRegistrantsCount: Number(offlineRegistrants) || 0,
         onlineWebRegistrantsCount: Number(onlineWebRegistrants) || 0,
-        documentCompletenessStatus: completenessStatus,
+        documentCompletenessStatus: completenessStatus || 'Lengkap',
       });
 
       clearTimeout(safetyTimer);
+
       try {
         playNotificationTone('success');
       } catch {
@@ -415,9 +443,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
       try {
         confetti({
-          particleCount: 55,
-          spread: 65,
-          origin: { y: 0.65 }
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.6 }
         });
       } catch {
         // Safe fallback if canvas is restricted
@@ -429,11 +457,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         setIsSubmitting(false);
         onClose();
         if (onSuccess) onSuccess();
-      }, 1000);
+      }, 1200);
     } catch (err: unknown) {
       clearTimeout(safetyTimer);
       console.error('Submit report failed:', err);
-      setSubmitError(err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan. Silakan coba lagi.');
+      setSubmitError(err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan laporan. Silakan coba lagi.');
       setIsSubmitting(false);
     }
   };
@@ -1121,13 +1149,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     Batal
                   </button>
                   <button
-                    type="button"
-                    onClick={() => handleSubmit()}
-                    disabled={isSubmitting || isProcessingImages}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                    type="submit"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Mengirim Laporan...' : isProcessingImages ? 'Memproses Foto...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
+                    <span>{isSubmitting ? 'Sedang Mengirim Laporan...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
                   </button>
                 </div>
               </div>

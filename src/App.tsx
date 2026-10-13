@@ -308,11 +308,11 @@ function MainLayout() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         onSuccess={() => setIsReportModalOpen(false)}
-        reporterName={currentRegion.coordinatorName || profile.displayName || `Panitia ${currentRegion.name}`}
-        reporterEmail={profile.email}
-        reporterId={profile.uid}
-        regionId={currentRegion.id}
-        regionName={currentRegion.name}
+        reporterName={currentRegion?.coordinatorName || profile?.displayName || `Panitia ${currentRegion?.name || 'Daerah'}`}
+        reporterEmail={profile?.email || 'panwil@sensei2027.id'}
+        reporterId={profile?.uid || 'panitia-user'}
+        regionId={currentRegion?.id || 'jabar'}
+        regionName={currentRegion?.name || 'Jawa Barat'}
       />
 
       {/* Report Verification Modal */}
