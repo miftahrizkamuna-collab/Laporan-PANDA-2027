@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle, AlertCircle, FileText, Calendar, MapPin, User, Send, Camera, School, Phone, Table } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, FileText, Calendar, MapPin, User, Send, Camera, School, Phone, Table, FolderOpen, ExternalLink } from 'lucide-react';
 import { ReportItem } from '../types';
 import { verifyReport } from '../services/dataService';
 import { playNotificationTone } from '../utils/sound';
@@ -192,6 +192,34 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
                 {report.description}
               </p>
             </div>
+
+            {/* Google Drive Documentation Preview for Admin Verification */}
+            {report.googleDriveUrl && (
+              <div className="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start gap-2">
+                    <FolderOpen className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                        Dokumentasi Google Drive Panitia
+                      </span>
+                      <p className="text-xs font-mono text-slate-700 truncate max-w-xs sm:max-w-sm">
+                        {report.googleDriveUrl}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={report.googleDriveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Buka Google Drive ↗</span>
+                  </a>
+                </div>
+              </div>
+            )}
 
             {/* Uploaded Photos Preview for Admin Verification */}
             {((report.documentationPhotos && report.documentationPhotos.length > 0) || report.documentationImageUrl) && (

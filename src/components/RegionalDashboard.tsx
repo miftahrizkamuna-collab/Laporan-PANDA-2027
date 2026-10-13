@@ -16,7 +16,9 @@ import {
   Edit3,
   X,
   Save,
-  ArrowLeft
+  ArrowLeft,
+  FolderOpen,
+  ExternalLink
 } from 'lucide-react';
 import { RegionData, ReportItem } from '../types';
 import { DailyTargetWidget } from './DailyTargetWidget';
@@ -231,13 +233,18 @@ export const RegionalDashboard: React.FC<RegionalDashboardProps> = ({
                 className="py-4.5 px-3 rounded-2xl hover:bg-slate-50/80 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
               >
                 <div className="flex items-start space-x-3.5 flex-1 min-w-0">
-                  {/* Photo thumbnail if exists */}
+                  {/* Photo thumbnail or Google Drive icon if exists */}
                   {report.documentationImageUrl ? (
                     <img
                       src={report.documentationImageUrl}
                       alt={report.title}
                       className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200 group-hover:scale-105 transition"
                     />
+                  ) : report.googleDriveUrl ? (
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex flex-col items-center justify-center shrink-0 group-hover:scale-105 transition">
+                      <FolderOpen className="w-5 h-5 text-emerald-600" />
+                      <span className="text-[8px] font-bold text-emerald-800 uppercase mt-0.5">Drive</span>
+                    </div>
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
                       <FileText className="w-5 h-5" />
@@ -259,6 +266,20 @@ export const RegionalDashboard: React.FC<RegionalDashboardProps> = ({
                            report.status === 'needs_revision' ? 'Butuh Revisi' : 'Menunggu Review'}
                         </span>
                       </span>
+
+                      {report.googleDriveUrl && (
+                        <a
+                          href={report.googleDriveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold hover:bg-emerald-100 transition shadow-2xs"
+                          title="Buka folder dokumentasi di Google Drive"
+                        >
+                          <FolderOpen className="w-3 h-3 text-emerald-600" />
+                          <span>Google Drive ↗</span>
+                        </a>
+                      )}
 
                       <span className="text-[11px] font-medium text-slate-400">
                         {report.activityDate} • Oleh {report.reporterName}

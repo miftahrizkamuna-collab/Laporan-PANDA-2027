@@ -51,6 +51,7 @@ export interface ReportItem {
   documentationUrls?: string[];
   documentationImageUrl?: string;
   documentationPhotos?: string[]; // uploaded photos array
+  googleDriveUrl?: string; // Tautan Google Drive Dokumentasi Foto/Folder
   // Khusus Pilihan 1: Sosialisasi Sekolah
   schoolNames?: string;
   schoolVisits?: SchoolVisitItem[];

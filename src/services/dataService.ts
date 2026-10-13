@@ -695,13 +695,15 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
 
   const photos = reportData.documentationPhotos || [];
   const primaryImageUrl = photos.length > 0 ? photos[0] : (reportData.documentationImageUrl || undefined);
+  const cleanDriveUrl = (reportData.googleDriveUrl || '').trim();
 
   const newReport: ReportItem = {
     ...reportData,
     id: newId,
     documentationImageUrl: primaryImageUrl,
     documentationPhotos: photos,
-    isFeaturedDocumentation: photos.length > 0 || !!primaryImageUrl || !!reportData.documentationNotes,
+    googleDriveUrl: cleanDriveUrl || undefined,
+    isFeaturedDocumentation: !!cleanDriveUrl || photos.length > 0 || !!primaryImageUrl || !!reportData.documentationNotes,
     status: 'pending',
     createdAt: nowStr,
   };
@@ -738,10 +740,12 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
     reportData.type === 'sosialisasi_medsos' ? 'Sosialisasi Medsos' :
     reportData.type === 'sinkron_pendaftar' ? 'Sinkron Pendaftar' : 'Aktivitas';
 
+  const docNotice = cleanDriveUrl ? 'Link Google Drive dilampirkan' : (photos.length > 0 ? `${photos.length} foto dilampirkan` : 'Dokumentasi siap');
+
   const autoNotif: NotificationItem = {
     id: notifId,
     title: `Laporan [${typeLabel}]: Provinsi ${reportData.regionName}`,
-    message: `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${photos.length} foto dilampirkan). Segera verifikasi!`,
+    message: `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${docNotice}). Segera verifikasi!`,
     type: 'new_report',
     reportId: newId,
     targetRole: 'admin_pusat',

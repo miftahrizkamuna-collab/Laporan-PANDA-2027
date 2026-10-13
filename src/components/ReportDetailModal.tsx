@@ -18,7 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Table
+  Table,
+  FolderOpen
 } from 'lucide-react';
 import { ReportItem } from '../types';
 
@@ -339,6 +340,38 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               {report.description}
             </div>
           </div>
+
+          {/* Google Drive Documentation Section */}
+          {report.googleDriveUrl && (
+            <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 rounded-2xl border border-emerald-200 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                    <FolderOpen className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                      Dokumentasi Foto Kegiatan (Google Drive)
+                    </span>
+                    <h5 className="font-bold text-slate-900 text-xs">Folder Foto Dokumentasi Resmi Panitia Daerah</h5>
+                    <p className="text-[11px] text-slate-600 truncate max-w-xs sm:max-w-md mt-0.5 font-mono">
+                      {report.googleDriveUrl}
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href={report.googleDriveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Google Drive ↗</span>
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Documentation Notes */}
           {report.documentationNotes && (
