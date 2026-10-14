@@ -286,10 +286,10 @@ function MainLayout() {
           <div className="flex items-center space-x-3">
             <span className="flex items-center gap-1 text-emerald-700 font-semibold">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Sistem Aktif (Sinkron Otomatis & Bebas Kuota)
+              Sistem Aktif (Zero-API • Bebas API Key)
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
-              v1.2.1 Live
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300 shadow-2xs">
+              v2.1 Bebas API Key
             </span>
           </div>
         </div>

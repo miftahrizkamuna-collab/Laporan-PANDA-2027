@@ -922,15 +922,26 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleSetSampleDriveLink}
-                    className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100/60 text-[11px] font-semibold transition cursor-pointer shrink-0"
-                    title="Gunakan link Google Drive contoh untuk pengujian"
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    <span>Contoh Link Drive</span>
-                  </button>
+                  <div className="flex items-center gap-2 self-start shrink-0">
+                    <button
+                      type="button"
+                      onClick={handlePasteClipboard}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 text-[11px] font-semibold transition cursor-pointer"
+                      title="Tempel link Google Drive dari clipboard"
+                    >
+                      <Clipboard className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Tempel Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSetSampleDriveLink}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100/60 text-[11px] font-semibold transition cursor-pointer"
+                      title="Gunakan link Google Drive contoh untuk pengujian"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>Contoh Link Drive</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Petunjuk Pengaturan Akses Berbagi Google Drive */}
@@ -1040,7 +1051,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Sedang Mengirim Laporan...' : 'Kirim Laporan & Foto Dokumentasi'}</span>
+                    <span>{isSubmitting ? 'Sedang Mengirim Laporan...' : 'Kirim Laporan Kegiatan'}</span>
                   </button>
                 </div>
               </div>

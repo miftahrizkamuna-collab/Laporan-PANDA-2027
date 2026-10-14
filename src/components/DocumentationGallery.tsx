@@ -11,7 +11,9 @@ import {
   ChevronRight,
   Share2,
   RefreshCw,
-  Images
+  Images,
+  FolderOpen,
+  ExternalLink
 } from 'lucide-react';
 import { ReportItem } from '../types';
 
@@ -31,11 +33,12 @@ export const DocumentationGallery: React.FC<DocumentationGalleryProps> = ({
   const [selectedPhotoReport, setSelectedPhotoReport] = useState<ReportItem | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
 
-  // Filter reports that have documentation (photos, single image, or notes)
+  // Filter reports that have documentation (photos, single image, notes, or googleDriveUrl)
   const docReports = reports.filter(r => 
     (r.documentationPhotos && r.documentationPhotos.length > 0) || 
     r.documentationImageUrl || 
-    r.documentationNotes
+    r.documentationNotes ||
+    Boolean(r.googleDriveUrl)
   );
 
   const filteredDocs = docReports.filter(r => {
@@ -153,6 +156,14 @@ export const DocumentationGallery: React.FC<DocumentationGalleryProps> = ({
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                         loading="lazy"
                       />
+                    ) : item.googleDriveUrl ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-emerald-800 via-teal-900 to-slate-900 text-white text-center relative">
+                        <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs mb-2">
+                          <FolderOpen className="w-8 h-8 text-emerald-400" />
+                        </div>
+                        <span className="text-xs font-bold px-2">Dokumentasi Google Drive</span>
+                        <span className="text-[10px] text-emerald-200 mt-0.5">Buka album foto di Google Drive</span>
+                      </div>
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-teal-800 to-emerald-900 text-white text-center">
                         <Camera className="w-8 h-8 mb-2 opacity-80" />
@@ -269,6 +280,25 @@ export const DocumentationGallery: React.FC<DocumentationGalleryProps> = ({
                         alt={`Dokumentasi ${activePhotoIndex + 1}`}
                         className="w-full h-full object-contain"
                       />
+                    ) : selectedPhotoReport.googleDriveUrl ? (
+                      <div className="text-white text-center p-8 flex flex-col items-center justify-center max-w-md">
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center mb-3">
+                          <FolderOpen className="w-8 h-8 text-emerald-400" />
+                        </div>
+                        <h4 className="font-bold text-base text-white mb-1">Dokumentasi Tersimpan di Google Drive</h4>
+                        <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+                          Foto kegiatan ini diunggah panitia daerah ke Google Drive masing-masing. Buka link di bawah untuk melihat foto resolusi penuh.
+                        </p>
+                        <a
+                          href={selectedPhotoReport.googleDriveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg transition"
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                          <span>Buka Album di Google Drive ↗</span>
+                        </a>
+                      </div>
                     ) : (
                       <div className="text-white text-center p-8">
                         <Camera className="w-16 h-16 mx-auto mb-2 opacity-50" />

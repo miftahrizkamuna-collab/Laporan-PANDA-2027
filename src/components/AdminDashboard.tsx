@@ -22,7 +22,8 @@ import {
   RotateCcw,
   ArrowLeft,
   Trash2,
-  Upload
+  Upload,
+  FolderOpen
 } from 'lucide-react';
 import { RegionData, ReportItem } from '../types';
 import { AnalyticsCharts } from './AnalyticsCharts';
@@ -546,6 +547,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="text-[10px] text-slate-400 block">Pelapor</span>
                         <span className="font-semibold text-slate-800 truncate max-w-[110px] block">{report.reporterName}</span>
                       </div>
+                      {report.googleDriveUrl && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Dokumentasi</span>
+                          <a
+                            href={report.googleDriveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-bold text-emerald-700 flex items-center gap-1 hover:text-emerald-800 transition"
+                            title="Buka Folder Google Drive"
+                          >
+                            <FolderOpen className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Drive ↗</span>
+                          </a>
+                        </div>
+                      )}
                       {((report.documentationPhotos && report.documentationPhotos.length > 0) || report.documentationImageUrl) && (
                         <div>
                           <span className="text-[10px] text-slate-400 block">Foto Bukti</span>
