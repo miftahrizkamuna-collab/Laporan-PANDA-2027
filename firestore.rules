@@ -27,12 +27,9 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Reports - public read for transparent tracking of regional socialization activities
-    // Permits create and update specifically for panitia_wilayah role or unauthenticated users during pilot phase
+    // Reports - public read/write for transparent tracking of regional socialization activities
     match /reports/{reportId} {
-      allow read: if true;
-      allow create, update: if isPanitiaWilayah() || isAdmin() || !isSignedIn();
-      allow delete: if isAdmin() || !isSignedIn();
+      allow read, write: if true;
     }
 
     // Notifications - public read for real-time alerts

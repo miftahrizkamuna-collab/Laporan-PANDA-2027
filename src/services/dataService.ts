@@ -640,7 +640,7 @@ export function subscribeToRegions(callback: (regions: RegionData[]) => void) {
 
   const emitCurrent = () => {
     const local = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, inMemoryRegions);
-    local.sort((a, b) => a.name.localeCompare(b.name));
+    local.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     callback(local.length > 0 ? local : INITIAL_REGIONS);
   };
   emitCurrent();
@@ -665,10 +665,27 @@ export function subscribeToRegions(callback: (regions: RegionData[]) => void) {
           items.push({ id: docSnap.id, ...docSnap.data() } as RegionData);
         });
         if (items.length > 0) {
-          const remoteIds = new Set(items.map(r => r.id));
-          const missingInitial = INITIAL_REGIONS.filter(r => !remoteIds.has(r.id));
-          const merged = [...items, ...missingInitial];
-          merged.sort((a, b) => a.name.localeCompare(b.name));
+          const remoteMap = new Map(items.map(r => [r.id, r]));
+          const merged: RegionData[] = INITIAL_REGIONS.map(initial => {
+            const remote = remoteMap.get(initial.id);
+            if (!remote) return initial;
+            return {
+              ...initial,
+              ...remote,
+              name: remote.name || initial.name,
+              island: remote.island || initial.island,
+            };
+          });
+          items.forEach(r => {
+            if (!INITIAL_REGIONS.some(init => init.id === r.id)) {
+              merged.push({
+                ...r,
+                name: r.name || `Wilayah ${r.id}`,
+                island: r.island || 'Indonesia',
+              });
+            }
+          });
+          merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
           setLocalData(STORAGE_KEYS.REGIONS, merged);
           callback(merged);
         }
@@ -757,21 +774,27 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
   const currentNotifs = getLocalData<NotificationItem[]>(STORAGE_KEYS.NOTIFICATIONS, inMemoryNotifs);
   setLocalData(STORAGE_KEYS.NOTIFICATIONS, [autoNotif, ...currentNotifs]);
 
-  // 2. Non-blocking sanitized Firestore background sync (fire-and-forget, never blocks UI)
+  // 2. Non-blocking sanitized Firestore sync with fast timeout fallback
   try {
-    // Safeguard Firestore 1MB doc size by keeping max 2 base64 photos in remote sync
     const firestoreSyncDoc: ReportItem = {
       ...newReport,
       documentationPhotos: photos.length > 2 ? photos.slice(0, 2) : photos,
     };
     const cleanReport = sanitizeForFirestore(firestoreSyncDoc) as Record<string, unknown>;
-    setDoc(doc(db, 'reports', newId), cleanReport).catch((err) => {
+
+    // Attempt direct write with 2.5s timeout so UI never hangs even on weak networks
+    await Promise.race([
+      setDoc(doc(db, 'reports', newId), cleanReport),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+    ]).catch((err) => {
       console.warn('Background Firestore sync report notice:', err);
     });
 
     if (registrantsAdded > 0 || totalSchoolsAdded > 0) {
       const regRef = doc(db, 'regions', reportData.regionId);
-      const updatePayload: Record<string, ReturnType<typeof increment>> = {};
+      const updatePayload: Record<string, unknown> = {
+        name: reportData.regionName,
+      };
       if (registrantsAdded > 0) updatePayload.currentRegistrants = increment(registrantsAdded);
       if (sdAdded > 0) updatePayload.currentSchoolsSdMi = increment(sdAdded);
       if (smpAdded > 0) updatePayload.currentSchoolsSmpMts = increment(smpAdded);
