@@ -11,25 +11,29 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
   region,
   onOpenReportModal,
 }) => {
-  // Target perolehan total daerah adalah 75 pendaftar
-  const targetRegistrants = 75;
+  const isJabodetabek = region.id === 'jabodetabek' || (region.name || '').toLowerCase().includes('jabodetabek');
+
+  // Target perolehan total daerah (75 untuk provinsi, 100 untuk Jabodetabek/sesuai data region)
+  const targetRegistrants = region.targetRegistrants || (isJabodetabek ? 100 : 75);
   const currentRegistrants = region.currentRegistrants || 0;
   const registrantsPercent = Math.min(100, Math.round((currentRegistrants / targetRegistrants) * 100));
   const remainingRegistrants = Math.max(0, targetRegistrants - currentRegistrants);
 
-  // Target kunjungan sekolah sasaran: minimal 15 SD/MI dan 5 SMP/MTs
-  const targetSdMi = 15;
+  // Target kunjungan sekolah sasaran:
+  // Daerah provinsi: minimal 15 SD/MI dan 5 SMP/MTs (total minimal 20 sekolah)
+  // Roadshow Jabodetabek: maksimal 15 sekolah (10 SD/MI dan 5 SMP/MTs)
+  const targetSdMi = region.targetSchoolsSdMi || (isJabodetabek ? 10 : 15);
   const currentSdMi = region.currentSchoolsSdMi || 0;
   const sdMiPercent = Math.min(100, Math.round((currentSdMi / targetSdMi) * 100));
   const remainingSdMi = Math.max(0, targetSdMi - currentSdMi);
 
-  const targetSmpMts = 5;
+  const targetSmpMts = region.targetSchoolsSmpMts || 5;
   const currentSmpMts = region.currentSchoolsSmpMts || 0;
   const smpMtsPercent = Math.min(100, Math.round((currentSmpMts / targetSmpMts) * 100));
   const remainingSmpMts = Math.max(0, targetSmpMts - currentSmpMts);
 
   const totalSchoolsVisited = currentSdMi + currentSmpMts;
-  const totalSchoolsTarget = targetSdMi + targetSmpMts; // 20
+  const totalSchoolsTarget = region.targetSchools || (isJabodetabek ? 15 : (targetSdMi + targetSmpMts));
   const totalSchoolsPercent = Math.min(100, Math.round((totalSchoolsVisited / totalSchoolsTarget) * 100));
 
   return (
@@ -44,14 +48,16 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold mb-2 border border-emerald-200/60">
               <Award className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Monitoring Capaian Target Wilayah SENSEI 2027</span>
+              <span>{isJabodetabek ? 'Monitoring Capaian Roadshow Panitia Pusat SENSEI 2027' : 'Monitoring Capaian Target Wilayah SENSEI 2027'}</span>
             </div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <Target className="w-5 h-5 text-emerald-600" />
-              Monitoring Perolehan Total — Provinsi {region.name}
+              {isJabodetabek ? 'Monitoring Capaian Roadshow — Jabodetabek' : `Monitoring Perolehan Total — Provinsi ${region.name}`}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Pantau akumulasi perolehan kuota 75 pendaftar dan realisasi kunjungan minimal 15 SD/MI serta 5 SMP/MTs.
+              {isJabodetabek 
+                ? 'Pantau perolehan calon siswa baru dan realisasi sosialisasi maksimal 15 sekolah sasaran (10 SD/MI & 5 SMP/MTs) se-Jabodetabek.' 
+                : 'Pantau akumulasi perolehan kuota 75 pendaftar dan realisasi kunjungan minimal 15 SD/MI serta 5 SMP/MTs.'}
             </p>
           </div>
 
@@ -117,13 +123,13 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
             </div>
           </div>
 
-          {/* Card 2: KUNJUNGAN SEKOLAH SASARAN SD/MI (MINIMAL 15 SEKOLAH) */}
+          {/* Card 2: KUNJUNGAN SEKOLAH SASARAN SD/MI */}
           <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 flex flex-col justify-between hover:border-emerald-300 transition">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
                   <School className="w-4 h-4 text-emerald-600" />
-                  Target Minimal SD / MI
+                  {isJabodetabek ? 'Target Roadshow SD / MI' : 'Target Minimal SD / MI'}
                 </span>
                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   sdMiPercent >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
@@ -148,7 +154,7 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
                 <div className="flex justify-between text-[11px] text-slate-500">
                   <span>Mulai</span>
                   <span>{remainingSdMi > 0 ? `Sisa: ${remainingSdMi} sekolah lagi` : 'Target SD/MI Tercapai ✓'}</span>
-                  <span>Min. {targetSdMi}</span>
+                  <span>{isJabodetabek ? `Maks. ${targetSdMi}` : `Min. ${targetSdMi}`}</span>
                 </div>
               </div>
             </div>
@@ -157,18 +163,18 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
               <span>Sosialisasi SD/MI:</span>
               <span className={`font-semibold flex items-center gap-1 ${currentSdMi >= targetSdMi ? 'text-emerald-700' : 'text-slate-700'}`}>
                 {currentSdMi >= targetSdMi && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                {currentSdMi >= targetSdMi ? 'Target Minimal Terpenuhi' : 'Lanjutkan Kunjungan'}
+                {currentSdMi >= targetSdMi ? (isJabodetabek ? 'Target Maksimal Tercapai' : 'Target Minimal Terpenuhi') : 'Lanjutkan Kunjungan'}
               </span>
             </div>
           </div>
 
-          {/* Card 3: KUNJUNGAN SEKOLAH SASARAN SMP/MTs (MINIMAL 5 SEKOLAH) */}
+          {/* Card 3: KUNJUNGAN SEKOLAH SASARAN SMP/MTs */}
           <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 flex flex-col justify-between hover:border-blue-300 transition">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
                   <GraduationCap className="w-4 h-4 text-blue-600" />
-                  Target Minimal SMP / MTs
+                  {isJabodetabek ? 'Target Roadshow SMP / MTs' : 'Target Minimal SMP / MTs'}
                 </span>
                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   smpMtsPercent >= 100 ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
@@ -193,7 +199,7 @@ export const DailyTargetWidget: React.FC<DailyTargetWidgetProps> = ({
                 <div className="flex justify-between text-[11px] text-slate-500">
                   <span>Mulai</span>
                   <span>{remainingSmpMts > 0 ? `Sisa: ${remainingSmpMts} sekolah lagi` : 'Target SMP/MTs Tercapai ✓'}</span>
-                  <span>Min. {targetSmpMts}</span>
+                  <span>{isJabodetabek ? `Maks. ${targetSmpMts}` : `Min. ${targetSmpMts}`}</span>
                 </div>
               </div>
             </div>

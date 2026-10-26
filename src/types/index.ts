@@ -62,6 +62,9 @@ export interface ReportItem {
   offlineRegistrantsCount?: number;
   onlineWebRegistrantsCount?: number;
   documentCompletenessStatus?: string;
+  // Khusus Roadshow Jabodetabek
+  roadshowPic?: string;
+  roadshowArea?: string;
   isFeaturedDocumentation?: boolean;
   status: ReportStatus;
   verifiedBy?: string;

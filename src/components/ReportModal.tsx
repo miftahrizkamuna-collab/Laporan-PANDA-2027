@@ -48,7 +48,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   regionName,
   onSuccess,
 }) => {
-  // 3 Pilihan Laporan Utama
+  const isJabodetabek = (regionId === 'jabodetabek' || (regionName || '').toLowerCase().includes('jabodetabek'));
+
+  // 3 Pilihan Laporan Utama (khusus Jabodetabek hanya 2 pilihan: sekolah & medsos)
   const [reportCategory, setReportCategory] = useState<
     'sosialisasi_sekolah' | 'sosialisasi_medsos' | 'sinkron_pendaftar'
   >('sosialisasi_sekolah');
@@ -60,10 +62,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     new Date().toISOString().substring(0, 10)
   );
 
+  // Field Khusus Roadshow Jabodetabek
+  const [roadshowPic, setRoadshowPic] = useState('');
+  const [roadshowArea, setRoadshowArea] = useState('');
+
   // Field Khusus Pilihan 1: TABEL SEKOLAH DENGAN SETIAP BARIS 1 SEKOLAH & CONTACT PERSON
   const [schoolRows, setSchoolRows] = useState<SchoolVisitItem[]>([
     {
-      schoolName: 'MIS / SD Sasaran 1',
+      schoolName: isJabodetabek ? 'SDIT Al-Ihsan Kebayoran Baru' : 'MIS / SD Sasaran 1',
       category: 'sd_mi',
       contactPersonName: '',
       contactPersonPhone: '',
@@ -78,7 +84,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [digitalAudienceReach, setDigitalAudienceReach] = useState<number>(250);
   const [registrantsFromMedsos, setRegistrantsFromMedsos] = useState<number>(3);
 
-  // Field Khusus Pilihan 3: Sinkron Pendaftar Daerah & Web SENSEI
+  // Field Khusus Pilihan 3: Sinkron Pendaftar Daerah & Web SENSEI (Hanya untuk 14 provinsi)
   const [offlineRegistrants, setOfflineRegistrants] = useState<number>(10);
   const [onlineWebRegistrants, setOnlineWebRegistrants] = useState<number>(15);
   const [totalValidatedRegistrants, setTotalValidatedRegistrants] = useState<number>(25);
@@ -93,6 +99,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
   // Helper title generator
   const getDefaultTitle = (cat: string, regName: string) => {
+    if (isJabodetabek) {
+      if (cat === 'sosialisasi_sekolah') return `Roadshow Sosialisasi SENSEI 2027 di Sekolah Sasaran Jabodetabek`;
+      if (cat === 'sosialisasi_medsos') return `Publikasi & Siaran Medsos Roadshow SENSEI 2027 — Jabodetabek`;
+      return `Roadshow Sosialisasi SENSEI 2027 di Sekolah Sasaran Jabodetabek`;
+    }
     if (cat === 'sosialisasi_sekolah') return `Sosialisasi SENSEI 2027 di Sekolah Sasaran — Provinsi ${regName}`;
     if (cat === 'sosialisasi_medsos') return `Publikasi & Siaran Medsos SENSEI 2027 — Provinsi ${regName}`;
     return `Sinkronisasi Pendaftar Calon Siswa & Web — Provinsi ${regName}`;
@@ -101,13 +112,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   // Auto initialize default title on open
   useEffect(() => {
     if (isOpen) {
+      if (isJabodetabek && reportCategory === 'sinkron_pendaftar') {
+        setReportCategory('sosialisasi_sekolah');
+      }
       if (!title || title.trim() === '') {
-        setTitle(getDefaultTitle(reportCategory, regionName));
+        setTitle(getDefaultTitle(isJabodetabek && reportCategory === 'sinkron_pendaftar' ? 'sosialisasi_sekolah' : reportCategory, regionName));
       }
       setIsSubmitting(false);
       setSubmitError(null);
     }
-  }, [isOpen, regionName]);
+  }, [isOpen, regionName, regionId]);
 
   const handleCategoryChange = (newCat: 'sosialisasi_sekolah' | 'sosialisasi_medsos' | 'sinkron_pendaftar') => {
     setReportCategory(newCat);
@@ -116,6 +130,35 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
   // Quick fill sample data for fast testing by the user
   const handleQuickFillDemo = () => {
+    if (isJabodetabek) {
+      setTitle(`Laporan Roadshow Sosialisasi SENSEI 2027 — Wilayah Jabodetabek`);
+      setDescription(`Tim Roadshow Panitia Pusat SMART Ekselensia Indonesia telah melaksanakan sosialisasi langsung tatap muka ke sekolah-sekolah sasaran di wilayah Jabodetabek.`);
+      setRoadshowPic('Ust. Ahmad Fauzi, S.Pd (Tim Sosialisasi Pusat SMART)');
+      setRoadshowArea('DKI Jakarta — Jakarta Selatan & Kota Depok');
+      setSchoolRows([
+        {
+          schoolName: 'SDIT Al-Ihsan Kebayoran Baru Jakarta',
+          category: 'sd_mi',
+          contactPersonName: 'Ibu Fatimah, S.Pd (Guru BK)',
+          contactPersonPhone: '0812-3456-7890',
+          studentsReached: 45,
+          registrantsDirect: 4,
+        },
+        {
+          schoolName: 'SMPN 2 Kota Depok',
+          category: 'smp_mts',
+          contactPersonName: 'Pak Hendra, M.Pd (Kesiswaan)',
+          contactPersonPhone: '0813-9876-5432',
+          studentsReached: 60,
+          registrantsDirect: 5,
+        }
+      ]);
+      setGoogleDriveUrl('https://drive.google.com/drive/folders/1A2B3C4D5E6F7G8H9I0J-RoadshowJabodetabek');
+      setDocumentationNotes('Folder Google Drive dokumentasi roadshow pusat: foto sesi sosialisasi kelas, sambutan kepala sekolah, dan penyerahan formulir beasiswa SMART.');
+      setSubmitError(null);
+      return;
+    }
+
     setTitle(`Uji Coba Laporan Sosialisasi SENSEI 2027 — Provinsi ${regionName}`);
     setDescription(`Sosialisasi beasiswa SMART Ekselensia Indonesia SENSEI 2027 telah dilaksanakan dengan antusiasme tinggi dari para siswa dan dewan guru.`);
     setSchoolRows([
@@ -304,13 +347,17 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         schoolNamesSummary = cleanedRows.map(r => (r.schoolName || '').trim()).filter(Boolean).join(', ');
 
         if (!autoDesc) {
-          autoDesc = `Sosialisasi tatap muka dilaksanakan di ${totalSchools} sekolah: ${schoolNamesSummary || 'Sekolah sasaran'}. Menjangkau ${audience} siswa dan mengumpulkan ${totalRegistrants} berkas calon siswa baru.`;
+          const picPrefix = (isJabodetabek && roadshowPic) ? `[PIC: ${roadshowPic}] ` : '';
+          const areaSuffix = (isJabodetabek && roadshowArea) ? ` di wilayah ${roadshowArea}` : '';
+          autoDesc = `${picPrefix}Sosialisasi tatap muka dilaksanakan di ${totalSchools} sekolah${areaSuffix}: ${schoolNamesSummary || 'Sekolah sasaran'}. Menjangkau ${audience} siswa dan mengumpulkan ${totalRegistrants} berkas calon siswa baru.`;
         }
       } else if (reportCategory === 'sosialisasi_medsos') {
         totalRegistrants = Number(registrantsFromMedsos) || 0;
         audience = Number(digitalAudienceReach) || 0;
         if (!autoDesc) {
-          autoDesc = `Publikasi sosialisasi digital melalui ${mediaPlatform || 'Media Sosial'} dengan estimasi capaian ${audience} jangkauan/tayangan. Tautan: ${mediaPostUrl || '-'}`;
+          const picPrefix = (isJabodetabek && roadshowPic) ? `[PIC: ${roadshowPic}] ` : '';
+          const areaSuffix = (isJabodetabek && roadshowArea) ? ` wilayah ${roadshowArea}` : '';
+          autoDesc = `${picPrefix}Publikasi sosialisasi digital melalui ${mediaPlatform || 'Media Sosial'}${areaSuffix} dengan estimasi capaian ${audience} jangkauan/tayangan. Tautan: ${mediaPostUrl || '-'}`;
         }
       } else if (reportCategory === 'sinkron_pendaftar') {
         totalRegistrants = Number(totalValidatedRegistrants) || 0;
@@ -333,6 +380,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         title: finalTitle,
         description: autoDesc,
         activityDate: activityDate || new Date().toISOString().substring(0, 10),
+        roadshowPic: isJabodetabek ? ((roadshowPic || '').trim() || undefined) : undefined,
+        roadshowArea: isJabodetabek ? ((roadshowArea || '').trim() || undefined) : undefined,
         registrantsAdded: totalRegistrants,
         schoolsVisited: totalSchools,
         schoolsSdMiVisited: sdCount,
@@ -392,13 +441,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-6 text-white flex items-center justify-between">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-semibold border border-emerald-400/20 mb-1">
-              <span>Formulir Pelaporan Panitia Daerah</span>
+              <span>{regionId === 'jabodetabek' ? 'Formulir Pelaporan Roadshow Panitia Pusat' : 'Formulir Pelaporan Panitia Daerah'}</span>
             </div>
             <h3 className="text-xl font-extrabold text-white">
-              + Buat Laporan Baru — Provinsi {regionName}
+              {regionId === 'jabodetabek' ? '+ Buat Laporan Roadshow Baru — Jabodetabek' : `+ Buat Laporan Baru — Provinsi ${regionName}`}
             </h3>
             <p className="text-xs text-slate-300 mt-0.5">
-              Pilih jenis kegiatan, lengkapi rincian, dan lampirkan foto dokumentasi kegiatan.
+              {regionId === 'jabodetabek' 
+                ? 'Catat rincian kunjungan sekolah, audiens siswa, dan link dokumentasi roadshow pusat se-Jabodetabek.' 
+                : 'Pilih jenis kegiatan, lengkapi rincian, dan lampirkan link Google Drive dokumentasi kegiatan.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -455,13 +506,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </button>
             </div>
 
-            {/* 3 PILIHAN LAPORAN UTAMA */}
+            {/* PILIHAN JENIS LAPORAN (Khusus Jabodetabek: Pilihan 1 & 2 saja; Provinsi: 3 Pilihan) */}
             <div>
               <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-                Pilih Jenis Laporan Kegiatan (3 Pilihan Utama) *
+                {isJabodetabek ? 'Pilih Jenis Laporan Roadshow Jabodetabek *' : 'Pilih Jenis Laporan Kegiatan (3 Pilihan Utama) *'}
               </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className={`grid grid-cols-1 ${isJabodetabek ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-3`}>
                 {/* 1. SOSIALISASI KE SEKOLAH */}
                 <button
                   type="button"
@@ -489,7 +540,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     </p>
                   </div>
                   <div className="mt-2.5 pt-2 border-t border-slate-200/60 text-[10px] font-semibold text-emerald-800">
-                    Target: Min. 15 SD & 5 SMP
+                    {isJabodetabek ? 'Target: Maksimal 15 Sekolah (SD & SMP)' : 'Target: Min. 15 SD & 5 SMP'}
                   </div>
                 </button>
 
@@ -524,38 +575,104 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   </div>
                 </button>
 
-                {/* 3. SINKRON PENDAFTAR DAERAH & FORMULIR ONLINE WEB SENSEI */}
-                <button
-                  type="button"
-                  onClick={() => handleCategoryChange('sinkron_pendaftar')}
-                  className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between cursor-pointer ${
-                    reportCategory === 'sinkron_pendaftar'
-                      ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500 shadow-sm'
-                      : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70 text-slate-700'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                        reportCategory === 'sinkron_pendaftar' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        Pilihan 3
-                      </span>
-                      <RefreshCw className={`w-4 h-4 ${reportCategory === 'sinkron_pendaftar' ? 'text-blue-700' : 'text-slate-400'}`} />
+                {/* 3. SINKRON PENDAFTAR DAERAH & FORMULIR ONLINE WEB SENSEI (Hanya ditampilkan untuk 14 provinsi) */}
+                {!isJabodetabek && (
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('sinkron_pendaftar')}
+                    className={`p-4 rounded-2xl border text-left transition relative flex flex-col justify-between cursor-pointer ${
+                      reportCategory === 'sinkron_pendaftar'
+                        ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500 shadow-sm'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/70 text-slate-700'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          reportCategory === 'sinkron_pendaftar' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          Pilihan 3
+                        </span>
+                        <RefreshCw className={`w-4 h-4 ${reportCategory === 'sinkron_pendaftar' ? 'text-blue-700' : 'text-slate-400'}`} />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                        Sinkron Pendaftar Daerah & Web
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                        Rekap berkas fisik daerah vs formulir online di web SENSEI
+                      </p>
                     </div>
-                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                      Sinkron Pendaftar Daerah & Web
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
-                      Rekap berkas fisik daerah vs formulir online di web SENSEI
-                    </p>
-                  </div>
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/60 text-[10px] font-semibold text-blue-800">
-                    Target Kuota: 75 Calon Siswa
-                  </div>
-                </button>
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 text-[10px] font-semibold text-blue-800">
+                      Target Kuota: 75 Calon Siswa
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* KHUSUS ROADSHOW JABODETABEK: KOLOM PIC ROADSHOW & WILAYAH/DAERAH ROADSHOW */}
+            {isJabodetabek && (
+              <div className="p-4 bg-teal-50/80 rounded-2xl border border-teal-200/90 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
+                  <span className="text-xs font-bold text-teal-950 uppercase tracking-wider">
+                    Informasi Pelaksana & Wilayah Roadshow Jabodetabek
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-teal-950 mb-1.5 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-teal-600" />
+                      <span>PIC / Penanggung Jawab Roadshow *</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={roadshowPic}
+                      onChange={(e) => setRoadshowPic(e.target.value)}
+                      placeholder="Contoh: Ust. Ahmad Fauzi / Tim Sosialisasi Pusat 1"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-teal-300/80 bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-2xs"
+                    />
+                    <span className="text-[11px] text-teal-700/90 mt-1 block font-medium">
+                      Nama koordinator / person in charge tim sosialisasi pusat
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-teal-950 mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Wilayah / Daerah Roadshow *</span>
+                    </label>
+                    <input
+                      type="text"
+                      list="jabodetabek-regions-list"
+                      value={roadshowArea}
+                      onChange={(e) => setRoadshowArea(e.target.value)}
+                      placeholder="Contoh: Jakarta Selatan / Kota Depok / Bekasi"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-teal-300/80 bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-2xs"
+                    />
+                    <datalist id="jabodetabek-regions-list">
+                      <option value="DKI Jakarta — Jakarta Selatan" />
+                      <option value="DKI Jakarta — Jakarta Timur" />
+                      <option value="DKI Jakarta — Jakarta Pusat" />
+                      <option value="DKI Jakarta — Jakarta Barat" />
+                      <option value="DKI Jakarta — Jakarta Utara" />
+                      <option value="Jawa Barat — Kota Depok" />
+                      <option value="Jawa Barat — Kota Bogor" />
+                      <option value="Jawa Barat — Kabupaten Bogor" />
+                      <option value="Jawa Barat — Kota Bekasi" />
+                      <option value="Jawa Barat — Kabupaten Bekasi" />
+                      <option value="Banten — Kota Tangerang" />
+                      <option value="Banten — Kota Tangerang Selatan" />
+                      <option value="Banten — Kabupaten Tangerang" />
+                    </datalist>
+                    <span className="text-[11px] text-teal-700/90 mt-1 block font-medium">
+                      Pilih dari rekomendasi daftar atau ketik daerah sasaran
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Judul & Tanggal Pelaksanaan */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

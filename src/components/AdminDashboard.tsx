@@ -36,6 +36,7 @@ interface AdminDashboardProps {
   onOpenVerify: (report: ReportItem) => void;
   onOpenDetail: (report: ReportItem) => void;
   onBackToPortal?: () => void;
+  onOpenRegion?: (regionId: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -44,6 +45,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenVerify,
   onOpenDetail,
   onBackToPortal,
+  onOpenRegion,
 }) => {
   const [activeTab, setActiveTab] = useState<'verification' | 'analytics' | 'all_reports' | 'regions_list'>('verification');
   const [regionFilter, setRegionFilter] = useState<string>('all');
@@ -431,6 +433,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </form>
       </div>
 
+      {/* Highlight Roadshow Panitia Jabodetabek */}
+      <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-emerald-950 rounded-2xl p-4 sm:p-5 border border-teal-500/30 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center justify-center shrink-0">
+            <Building2 className="w-6 h-6 text-teal-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-extrabold text-white">Halaman Panitia Jabodetabek (Roadshow Panitia Pusat)</span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-400 text-slate-950">
+                Roadshow Khusus Pusat
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              Ruang pelaporan khusus sosialisasi tatap muka tim pusat ke sekolah sasaran se-Jabodetabek (DKI Jakarta, Bogor, Depok, Tangerang, Bekasi).
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onOpenRegion ? onOpenRegion('jabodetabek') : undefined}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 text-xs font-bold transition shadow-xs shrink-0 cursor-pointer"
+        >
+          <span>Buka Halaman Panitia Jabodetabek</span>
+          <span>→</span>
+        </button>
+      </div>
+
       {/* Main Tabs Navigation */}
       <div className="border-b border-slate-200 flex space-x-6 text-sm font-semibold overflow-x-auto">
         <button
@@ -683,15 +712,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <span className="text-slate-400">{regReportsCount} Laporan</span>
                     </div>
 
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-emerald-700 font-semibold text-[11px]">Target: 75 Calon Siswa</span>
+                    <div className="flex justify-between items-center pt-1 gap-2">
+                      {onOpenRegion && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenRegion(reg.id)}
+                          className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-800 font-bold hover:bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 transition"
+                        >
+                          <span>Buka Halaman →</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setRegionToDelete(reg)}
-                        className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 font-semibold hover:bg-rose-50 px-2 py-1 rounded-lg border border-rose-200/60 transition"
+                        className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 font-semibold hover:bg-rose-50 px-2 py-1 rounded-lg border border-rose-200/60 transition ml-auto"
                       >
                         <Trash2 className="w-3 h-3" />
-                        <span>Hapus Wilayah</span>
+                        <span>Hapus</span>
                       </button>
                     </div>
                   </div>

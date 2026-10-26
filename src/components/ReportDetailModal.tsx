@@ -191,6 +191,30 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </div>
           </div>
 
+          {/* Info Khusus Roadshow Jabodetabek jika ada */}
+          {(report.roadshowPic || report.roadshowArea) && (
+            <div className="p-3 bg-teal-50/80 rounded-2xl border border-teal-200 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              {report.roadshowPic && (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-teal-700 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-teal-700 font-medium block">PIC Roadshow:</span>
+                    <strong className="text-teal-950 font-bold">{report.roadshowPic}</strong>
+                  </div>
+                </div>
+              )}
+              {report.roadshowArea && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-teal-700 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-teal-700 font-medium block">Wilayah/Daerah Roadshow:</span>
+                    <strong className="text-teal-950 font-bold">{report.roadshowArea}</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Custom Details based on the 3 Categories */}
           {report.type === 'sosialisasi_sekolah' && (
             <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-2">

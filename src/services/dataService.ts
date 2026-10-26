@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc, 
+  getDoc,
   getDocs, 
   setDoc, 
   updateDoc, 
@@ -20,8 +21,24 @@ const STORAGE_KEYS = {
   INITIALIZED: 'sensei_2027_initialized_v1',
 };
 
-// 14 Provinsi Resmi Panitia Daerah SENSEI 2027 (Kondisi Kosong Siap Uji Coba)
+// 14 Provinsi Resmi Panitia Daerah SENSEI 2027 + Unit Roadshow Panitia Pusat Jabodetabek
 export const INITIAL_REGIONS: RegionData[] = [
+  {
+    id: 'jabodetabek',
+    name: 'Jabodetabek (Roadshow Panitia Pusat)',
+    island: 'Khusus Roadshow Pusat',
+    targetRegistrants: 100,
+    currentRegistrants: 0,
+    targetSchoolsSdMi: 10,
+    currentSchoolsSdMi: 0,
+    targetSchoolsSmpMts: 5,
+    currentSchoolsSmpMts: 0,
+    targetSchools: 15,
+    currentSchools: 0,
+    coordinatorName: 'Tim Roadshow Panitia Pusat SMART',
+    coordinatorPhone: '0812-8888-2027',
+    status: 'active'
+  },
   {
     id: 'sumut',
     name: 'Sumatera Utara',
@@ -350,8 +367,24 @@ function ensureLocalDataInitialized(): void {
     setLocalData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   } else {
-    // Populate in-memory cache
-    getLocalData(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    // Populate in-memory cache and ensure any newly added default region (e.g. Jabodetabek) exists
+    const current = getLocalData<RegionData[]>(STORAGE_KEYS.REGIONS, INITIAL_REGIONS);
+    const existingIds = new Set(current.map(r => r.id));
+    const missing = INITIAL_REGIONS.filter(r => !existingIds.has(r.id));
+    let updated = [...current, ...missing];
+    // Sync Jabodetabek target to 15 schools (SD dan SMP)
+    updated = updated.map(r => {
+      if (r.id === 'jabodetabek') {
+        return {
+          ...r,
+          targetSchools: 15,
+          targetSchoolsSdMi: 10,
+          targetSchoolsSmpMts: 5,
+        };
+      }
+      return r;
+    });
+    setLocalData(STORAGE_KEYS.REGIONS, updated);
     getLocalData(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
     getLocalData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
   }
@@ -368,6 +401,16 @@ export async function initFirestoreDataIfNeeded() {
       for (const reg of currentLocal) {
         const cleanReg = sanitizeForFirestore(reg) as Record<string, unknown>;
         setDoc(doc(db, 'regions', reg.id), cleanReg).catch(() => {});
+      }
+    } else {
+      // Ensure jabodetabek document exists in Firestore
+      const jSnap = await getDoc(doc(db, 'regions', 'jabodetabek')).catch(() => null);
+      if (!jSnap || !jSnap.exists()) {
+        const jData = INITIAL_REGIONS.find(r => r.id === 'jabodetabek');
+        if (jData) {
+          const clean = sanitizeForFirestore(jData) as Record<string, unknown>;
+          setDoc(doc(db, 'regions', 'jabodetabek'), clean).catch(() => {});
+        }
       }
     }
   } catch (error) {
@@ -759,10 +802,16 @@ export async function submitReport(reportData: Omit<ReportItem, 'id' | 'status' 
 
   const docNotice = cleanDriveUrl ? 'Link Google Drive dilampirkan' : (photos.length > 0 ? `${photos.length} foto dilampirkan` : 'Dokumentasi siap');
 
+  const isJabodetabek = reportData.regionId === 'jabodetabek' || (reportData.regionName || '').toLowerCase().includes('jabodetabek');
+
   const autoNotif: NotificationItem = {
     id: notifId,
-    title: `Laporan [${typeLabel}]: Provinsi ${reportData.regionName}`,
-    message: `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${docNotice}). Segera verifikasi!`,
+    title: isJabodetabek 
+      ? `Laporan Roadshow [${typeLabel}]: Jabodetabek` 
+      : `Laporan [${typeLabel}]: Provinsi ${reportData.regionName}`,
+    message: isJabodetabek && (reportData.roadshowPic || reportData.roadshowArea)
+      ? `[PIC: ${reportData.roadshowPic || '-'}${reportData.roadshowArea ? ` • Wilayah: ${reportData.roadshowArea}` : ''}] ${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${docNotice}). Segera verifikasi!`
+      : `${reportData.reporterName} melaporkan "${reportData.title}" (${registrantsAdded > 0 ? `+${registrantsAdded} calon siswa, ` : ''}${docNotice}). Segera verifikasi!`,
     type: 'new_report',
     reportId: newId,
     targetRole: 'admin_pusat',

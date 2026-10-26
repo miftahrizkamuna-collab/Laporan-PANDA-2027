@@ -10,7 +10,8 @@ import {
   Check, 
   Activity,
   UserCheck,
-  Home
+  Home,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NotificationBell } from './NotificationBell';
@@ -154,8 +155,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }`}
                     >
                       <div className="flex items-center space-x-2 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">Provinsi {reg.name}</span>
+                        {reg.id === 'jabodetabek' ? (
+                          <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                        ) : (
+                          <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        )}
+                        <span className="truncate">{reg.name}</span>
+                        {reg.id === 'jabodetabek' && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-teal-100 text-teal-800 font-bold shrink-0">Roadshow</span>
+                        )}
                       </div>
                       {profile.role === 'panitia_wilayah' && profile.regionId === reg.id && (
                         <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />

@@ -27,7 +27,8 @@ import {
   KeyRound, 
   LogOut,
   Home,
-  ArrowLeft
+  ArrowLeft,
+  Building2
 } from 'lucide-react';
 
 type AppView = 'portal' | 'admin' | 'region';
@@ -121,11 +122,17 @@ function MainLayout() {
             </span>
             {currentView === 'portal' ? (
               <span className="font-semibold text-emerald-200">
-                Halaman Awal: <span className="text-white">Pilih Login Admin Pusat atau Pilih Halaman Wilayah</span>
+                Halaman Awal: <span className="text-white">Pilih Login Admin Pusat, Panitia Jabodetabek, atau Halaman Wilayah</span>
               </span>
             ) : (
               <span>
-                Sedang membuka tampilan: <strong className="text-white underline">{currentView === 'admin' ? 'Admin Pusat SMART' : `Panitia Provinsi ${currentRegion?.name || ''}`}</strong>
+                Sedang membuka tampilan: <strong className="text-white underline">{
+                  currentView === 'admin' 
+                    ? 'Admin Pusat SMART' 
+                    : currentRegion?.id === 'jabodetabek'
+                    ? 'Panitia Jabodetabek (Roadshow Pusat)'
+                    : `Panitia Provinsi ${currentRegion?.name || ''}`
+                }</strong>
               </span>
             )}
           </div>
@@ -140,6 +147,23 @@ function MainLayout() {
                 <span>Halaman Awal (Portal)</span>
               </button>
             )}
+
+            {/* Quick Navigation to Roadshow Panitia Jabodetabek */}
+            <button
+              onClick={() => {
+                setSelectedPortalRegionId('jabodetabek');
+                switchSimulatedRole('panitia_wilayah', 'jabodetabek');
+                setCurrentView('region');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                currentView === 'region' && currentRegion?.id === 'jabodetabek'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-300" />
+              <span>🏙️ Panitia Jabodetabek (Roadshow Pusat)</span>
+            </button>
 
             <button
               onClick={handleAdminNavClick}
@@ -230,6 +254,11 @@ function MainLayout() {
               onOpenVerify={(rep) => setSelectedReportForVerify(rep)}
               onOpenDetail={(rep) => setSelectedReportForDetail(rep)}
               onBackToPortal={() => setCurrentView('portal')}
+              onOpenRegion={(id) => {
+                setSelectedPortalRegionId(id);
+                switchSimulatedRole('panitia_wilayah', id);
+                setCurrentView('region');
+              }}
             />
           ) : (
             /* Protected Admin View Screen */
@@ -311,11 +340,15 @@ function MainLayout() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         onSuccess={() => setIsReportModalOpen(false)}
-        reporterName={currentRegion?.coordinatorName || profile?.displayName || `Panitia ${currentRegion?.name || 'Daerah'}`}
-        reporterEmail={profile?.email || 'panwil@sensei2027.id'}
-        reporterId={profile?.uid || 'panitia-user'}
-        regionId={currentRegion?.id || 'jabar'}
-        regionName={currentRegion?.name || 'Jawa Barat'}
+        reporterName={
+          currentRegion?.id === 'jabodetabek'
+            ? (currentRegion?.coordinatorName || 'Tim Roadshow Panitia Pusat')
+            : (currentRegion?.coordinatorName || profile?.displayName || `Panitia ${currentRegion?.name || 'Daerah'}`)
+        }
+        reporterEmail={profile?.email || (currentRegion?.id === 'jabodetabek' ? 'roadshow@sensei2027.id' : 'panwil@sensei2027.id')}
+        reporterId={profile?.uid || (currentRegion?.id === 'jabodetabek' ? 'roadshow-pusat' : 'panitia-user')}
+        regionId={currentRegion?.id || 'jabodetabek'}
+        regionName={currentRegion?.name || 'Jabodetabek (Roadshow Panitia Pusat)'}
       />
 
       {/* Report Verification Modal */}

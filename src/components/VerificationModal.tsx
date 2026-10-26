@@ -115,6 +115,23 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
               </div>
             </div>
 
+            {(report.roadshowPic || report.roadshowArea) && (
+              <div className="p-2.5 bg-teal-50/80 rounded-xl border border-teal-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {report.roadshowPic && (
+                  <div className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                    <span><strong>PIC:</strong> {report.roadshowPic}</span>
+                  </div>
+                )}
+                {report.roadshowArea && (
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                    <span><strong>Wilayah:</strong> {report.roadshowArea}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="pt-2 border-t border-slate-200/60 grid grid-cols-3 gap-2 text-center">
               <div className="p-2 bg-white rounded-xl border border-slate-200/60">
                 <span className="block text-[10px] text-slate-400 font-medium">+ Pendaftar</span>
